@@ -66,8 +66,15 @@
       line-height: 1.2;
     }
 
+    .frame-hint {
+      text-align: center;
+      color: #94a3b8;
+      font-size: 13px;
+      margin-top: 10px;
+    }
+
     .frame {
-      margin-top: 12px;
+      margin-top: 6px;
       width: 100%;
       aspect-ratio: 4 / 3;
       background: #0f172a;
@@ -231,6 +238,131 @@
     .color-btn.red { background: #d1242f; }
     .color-btn.white { background: #ffffff; color: #111; }
 
+    /* 录音按钮样式 */
+    .record-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .record-btn {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--panel);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .record-btn:hover {
+      border-color: #d1242f;
+      background: rgba(209, 36, 47, 0.1);
+    }
+    .record-btn:active {
+      transform: scale(0.95);
+    }
+    .record-btn.recording {
+      border-color: #d1242f;
+      background: rgba(209, 36, 47, 0.2);
+      animation: pulse 1s infinite;
+    }
+    .record-btn.recording svg path {
+      fill: #d1242f;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(209, 36, 47, 0.4); }
+      50% { box-shadow: 0 0 0 10px rgba(209, 36, 47, 0); }
+    }
+    .record-progress {
+      display: none;
+      width: 80px;
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      margin-bottom: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+    .record-progress.show {
+      display: block;
+    }
+    .record-progress-bar {
+      height: 100%;
+      background: #d1242f;
+      border-radius: 3px;
+      width: 100%;
+      transition: width 0.1s linear;
+    }
+    .record-timer {
+      position: absolute;
+      top: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 14px;
+      color: #d1242f;
+      font-weight: bold;
+    }
+    .record-hint {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* 发送祝福按钮 */
+    .send-section {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+    }
+    .send-btn {
+      background: #8b0000;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 40px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .send-btn:hover {
+      background: #a00000;
+    }
+    .send-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* 发送成功提示 */
+    .send-success-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #0f172a;
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+    }
+    .send-success-overlay.show {
+      display: flex;
+    }
+    .send-success-content {
+      text-align: center;
+      padding: 20px;
+    }
+    .send-success-text {
+      font-size: 20px;
+      color: #fff;
+      margin-bottom: 16px;
+    }
+    .send-success-time {
+      font-size: 16px;
+      color: #d1242f;
+    }
+
     /* 三色屏预览样式 */
     .tricolor-section {
       margin-top: 12px;
@@ -340,11 +472,49 @@
       margin-top: 6px;
     }
     code { color: #c9d1d9; }
+
+    /* 初始状态：居中显示选择按钮 */
+    .initial-picker {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      z-index: 100;
+    }
+    .initial-picker.hidden {
+      display: none;
+    }
+    .initial-picker button {
+      padding: 20px 40px;
+      font-size: 18px;
+      border-radius: 16px;
+    }
+
+    /* 主内容初始隐藏 */
+    .main-content {
+      display: none;
+    }
+    .main-content.show {
+      display: block;
+    }
+
+    /* 隐藏顶部工具栏 */
+    .toolbar.hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="toolbar">
+  <!-- 初始居中选择按钮 -->
+  <div id="initialPicker" class="initial-picker">
+    <button id="btnPickInitial">选择图片</button>
+    <input id="fileInitial" type="file" accept="image/*" hidden />
+  </div>
+
+  <div id="mainContent" class="wrap main-content">
+    <div class="toolbar hidden">
       <div class="left">
         <button id="btnPick">选图片</button>
         <button id="btnReset" class="secondary" disabled>重置</button>
@@ -355,6 +525,7 @@
       </div>
     </div>
 
+    <div class="frame-hint">图片可以拖动和缩放</div>
     <div id="frame" class="frame" aria-label="预览裁剪框">
       <div id="placeholder" class="placeholder">
         点击“选图片”从相册选择一张图片
@@ -365,24 +536,24 @@
     </div>
 
     <div class="caption">
-      <label for="captionInput">图片文字（会显示在图片上）</label>
-      <textarea id="captionInput" rows="2" placeholder="输入文字…（支持换行）"></textarea>
+      <textarea id="captionInput" rows="2" placeholder="请输入祝福语.."></textarea>
       <div class="font-controls">
         <select id="fontSelect">
-          <option value="AlimamaDaoLiTi">阿里妈妈刀隶体</option>
-          <option value="AlimamaDongFangDaKai">阿里妈妈东方大楷</option>
-          <option value="AlimamaShuHeiTi">阿里妈妈数黑体</option>
-          <option value="DingTalkJinBuTi">钉钉进步体</option>
-          <option value="TaoBaoMaiCaiTi">淘宝买菜体</option>
+          <option value="default">默认字体</option>
+          <option value="AlimamaDaoLiTi">刀隶体</option>
+          <option value="AlimamaDongFangDaKai">东方大楷</option>
+          <option value="AlimamaShuHeiTi">数黑体</option>
+          <option value="DingTalkJinBuTi">进步体</option>
+          <option value="TaoBaoMaiCaiTi">买菜体</option>
         </select>
-        <button id="btnLoadFont">添加文字</button>
+        <button id="btnLoadFont">添加祝福语</button>
       </div>
-      <div class="size-controls">
+      <div class="size-controls" style="display:none;">
         <button id="btnFontSizeDown" class="secondary">缩小</button>
         <button id="btnFontSizeUp">放大</button>
         <button id="btnTextDirection" class="secondary">竖</button>
       </div>
-      <div class="color-controls">
+      <div class="color-controls" style="display:none;">
         <button id="btnColorBlack" class="color-btn black">黑</button>
         <button id="btnColorRed" class="color-btn red">红</button>
         <button id="btnColorWhite" class="color-btn white">白</button>
@@ -390,8 +561,26 @@
       <div id="fontStatus"></div>
     </div>
 
+    <!-- 录音按钮 -->
+    <div class="record-section" style="display:none;">
+      <div class="record-progress" id="recordProgress">
+        <div class="record-progress-bar" id="recordProgressBar"></div>
+        <span class="record-timer" id="recordTimer">10</span>
+      </div>
+      <button id="btnRecord" class="record-btn" aria-label="录音">
+        <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" width="32" height="32"><path d="M429.8 650.2h164.5c53.7 0 97.6-43.9 97.6-97.6V377.1H585.3v-40h106.6v-40H585.3v-40h106.6v-40H585.3v-40h106.6v-15.6c0-53.7-43.9-97.6-97.6-97.6H429.8c-53.7 0-97.6 43.9-97.6 97.6v15.6h106.6v40H332.1v40h106.6v40H332.1v40h106.6v40H332.1v175.5c0 53.7 44 97.6 97.7 97.6z" fill="#bfbfbf"></path><path d="M825.1 380.4c-18.4 0-33.3 14.9-33.3 33.3v186.5c0 69.8-57.5 126.6-128.3 126.6h-303c-70.7 0-128.3-56.8-128.3-126.6V413.7c0-18.4-14.9-33.3-33.3-33.3s-33.3 14.9-33.3 33.3v186.5c0 106.5 87.4 193.2 194.9 193.2H472V920c0 22 18 40 40 40s40-18 40-40V793.5h111.5c107.5 0 194.9-86.7 194.9-193.2V413.7c0-18.4-14.9-33.3-33.3-33.3z" fill="#bfbfbf"></path></svg>
+      </button>
+      <div class="record-hint">可录制祝福语</div>
+      <audio id="recordedAudio" style="display:none;"></audio>
+    </div>
+
+    <!-- 发送祝福按钮 -->
+    <div class="send-section" style="display:none;">
+      <button id="btnSendBlessing" class="send-btn">发送祝福</button>
+    </div>
+
     <!-- 三色屏效果 -->
-    <div class="tricolor-section">
+    <div class="tricolor-section" style="display:none;">
       <label>仿三色墨水屏效果</label>
       <div class="tricolor-controls">
         <button id="btnTricolorDownload" class="secondary" disabled>下载三色图</button>
@@ -418,10 +607,13 @@
         <input type="checkbox" id="autoLevels" checked />
       </div>
     </div>
+  </div>
 
-    <div class="meta">
-      <div id="status">未加载图片</div>
-      <div>建议用同局域网访问：<code>python -m http.server 8000</code></div>
+  <!-- 发送成功提示 -->
+  <div id="sendSuccessOverlay" class="send-success-overlay">
+    <div class="send-success-content">
+      <div class="send-success-text">祝福已经发送到你的祝福牌</div>
+      <div class="send-success-time">将在 00:00 分更新</div>
     </div>
   </div>
 
@@ -434,6 +626,12 @@
   </div>
 
   <script>
+    // 初始选择器
+    const initialPicker = document.getElementById('initialPicker');
+    const btnPickInitial = document.getElementById('btnPickInitial');
+    const fileInitial = document.getElementById('fileInitial');
+    const mainContent = document.getElementById('mainContent');
+
     const frame = document.getElementById('frame');
     const img = document.getElementById('img');
     const placeholder = document.getElementById('placeholder');
@@ -442,7 +640,6 @@
     const fileInput = document.getElementById('file');
     const btnPick = document.getElementById('btnPick');
     const btnReset = document.getElementById('btnReset');
-    const statusEl = document.getElementById('status');
     const fontSelect = document.getElementById('fontSelect');
     const btnLoadFont = document.getElementById('btnLoadFont');
     const fontStatus = document.getElementById('fontStatus');
@@ -452,6 +649,22 @@
     const btnColorBlack = document.getElementById('btnColorBlack');
     const btnColorRed = document.getElementById('btnColorRed');
     const btnColorWhite = document.getElementById('btnColorWhite');
+
+    // 三色效果相关
+    const bwThresholdSlider = document.getElementById('bwThreshold');
+    const gammaSlider = document.getElementById('gammaSlider');
+    const autoLevelsSlider = document.getElementById('autoLevelsSlider');
+    const satThresholdSlider = document.getElementById('satThreshold');
+    const valThresholdSlider = document.getElementById('valThreshold');
+    const redDeltaSlider = document.getElementById('redDelta');
+    const hueWidthSlider = document.getElementById('hueWidth');
+    const redThresholdSlider = document.getElementById('redThreshold');
+    const redBoostSlider = document.getElementById('redBoost');
+    const redDitherCheckbox = document.getElementById('redDither');
+    const autoLevelsCheckbox = document.getElementById('autoLevels');
+    const outputScaleSelect = document.getElementById('outputScale');
+    const tricolorInfo = document.getElementById('tricolorInfo');
+    let lastTricolorResult = null;
 
     // 远程字体服务地址（已改为远程 HTTPS）
     const FONT_API = 'https://www.twobaozi.com/qfp/font/dfont.php';
@@ -481,15 +694,18 @@
     };
 
     const fontState = {
-      size: 18,
+      size: 34,
       min: 12,
       max: 48,
       step: 2,
     };
 
     const colorState = {
-      color: '#ffffff',
+      color: '#d1242f',
     };
+
+    // 文字锁定状态：加载完成后锁定图片
+    let textLocked = false;
 
     function applyTextShadowForColor(color) {
       if (color === '#d1242f' || color === '#111111') {
@@ -524,9 +740,6 @@
 
     function applyTransform() {
       img.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
-      statusEl.textContent = state.hasImage
-        ? `scale=${state.scale.toFixed(3)} tx=${Math.round(state.tx)} ty=${Math.round(state.ty)}`
-        : '未加载图片';
     }
 
     function applyTextTransform() {
@@ -703,8 +916,13 @@
         state.imgH = img.naturalHeight;
         resetGestureSnapshots();
         computeCoverTransform();
-        // 自动转换为三色并显示
-        setTimeout(autoConvertTricolor, 100);
+        applyTransform();
+        // 自动转换为三色并显示（等待渲染完成）
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            autoConvertTricolor();
+          });
+        });
       };
     }
 
@@ -825,6 +1043,12 @@
     }
 
     function updateCaption() {
+      // 输入时不显示，等点击按钮加载完成后再显示
+      // 此函数现在仅用于字体加载完成后调用
+    }
+
+    // 实际显示文字的函数
+    function showCaption() {
       const v = (captionInput.value || '').trimEnd();
       if (!v) {
         textLayer.style.display = 'none';
@@ -859,8 +1083,29 @@
       }
 
       const fontName = fontSelect.value;
-      fontStatus.textContent = '正在加载字体...';
-      fontStatus.style.color = 'var(--muted)';
+      
+      // 默认字体直接显示，不需要加载
+      if (fontName === 'default') {
+        currentFontFamily = 'sans-serif';
+        textLayer.style.fontFamily = currentFontFamily;
+        
+        // 显示文字并锁定图片
+        showCaption();
+        textLocked = true;
+
+        // 隐藏输入框、字体选择、添加祝福语按钮
+        captionInput.style.display = 'none';
+        fontSelect.style.display = 'none';
+        btnLoadFont.style.display = 'none';
+
+        // 显示放大/缩小/横竖/颜色按钮、录音按钮和发送按钮
+        document.querySelector('.size-controls').style.display = '';
+        document.querySelector('.color-controls').style.display = '';
+        document.querySelector('.record-section').style.display = '';
+        document.querySelector('.send-section').style.display = '';
+        return;
+      }
+
       btnLoadFont.disabled = true;
       btnLoadFont.classList.add('btn-loading');
       loadingOverlay.classList.add('show');
@@ -901,9 +1146,20 @@
         currentFontFamily = customFontFamily;
         textLayer.style.fontFamily = currentFontFamily;
 
-        const charCount = text.replace(/\s/g, '').length;
-        fontStatus.textContent = `✓ 已加载 ${fontName}（${charCount} 个字符）`;
-        fontStatus.style.color = '#3fb950';
+        // 显示文字并锁定图片
+        showCaption();
+        textLocked = true;
+
+        // 隐藏输入框、字体选择、添加祝福语按钮
+        captionInput.style.display = 'none';
+        fontSelect.style.display = 'none';
+        btnLoadFont.style.display = 'none';
+
+        // 显示放大/缩小/横竖/颜色按钮、录音按钮和发送按钮
+        document.querySelector('.size-controls').style.display = '';
+        document.querySelector('.color-controls').style.display = '';
+        document.querySelector('.record-section').style.display = '';
+        document.querySelector('.send-section').style.display = '';
       } catch (error) {
         console.error('字体加载失败:', error);
         fontStatus.textContent = '✖ 字体加载失败: ' + error.message;
@@ -914,6 +1170,17 @@
         loadingOverlay.classList.remove('show');
       }
     }
+
+    // 初始选择器事件
+    btnPickInitial.addEventListener('click', () => fileInitial.click());
+    fileInitial.addEventListener('change', () => {
+      const file = fileInitial.files && fileInitial.files[0];
+      if (file) {
+        initialPicker.classList.add('hidden');
+        mainContent.classList.add('show');
+        setImageFromFile(file);
+      }
+    });
 
     btnPick.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', () => {
@@ -979,6 +1246,8 @@
 
     frame.addEventListener('pointerdown', (ev) => {
       if (!state.hasImage) return;
+      // 文字已加载后，禁止移动/缩放图片
+      if (textLocked) return;
       frame.setPointerCapture(ev.pointerId);
       const p = toLocalPoint(ev);
       pointers.set(ev.pointerId, p);
@@ -1080,23 +1349,6 @@
 
     // ========== 三色墨水屏效果 ==========
     const btnTricolorDownload = document.getElementById('btnTricolorDownload');
-    
-    // 参数控件 (隐藏的)
-    const bwThresholdSlider = document.getElementById('bwThreshold');
-    const gammaSlider = document.getElementById('gammaSlider');
-    const autoLevelsSlider = document.getElementById('autoLevelsSlider');
-    const satThresholdSlider = document.getElementById('satThreshold');
-    const valThresholdSlider = document.getElementById('valThreshold');
-    const redDeltaSlider = document.getElementById('redDelta');
-    const hueWidthSlider = document.getElementById('hueWidth');
-    const redThresholdSlider = document.getElementById('redThreshold');
-    const redBoostSlider = document.getElementById('redBoost');
-    const redDitherCheckbox = document.getElementById('redDither');
-    const autoLevelsCheckbox = document.getElementById('autoLevels');
-    const outputScaleSelect = document.getElementById('outputScale');
-    const tricolorInfo = document.getElementById('tricolorInfo');
-
-    let lastTricolorResult = null;
 
     /**
      * 下载三色图片
@@ -1111,6 +1363,155 @@
     }
 
     btnTricolorDownload.addEventListener('click', downloadTricolor);
+
+    // ========== 录音功能 ==========
+    const btnRecord = document.getElementById('btnRecord');
+    const recordProgress = document.getElementById('recordProgress');
+    const recordProgressBar = document.getElementById('recordProgressBar');
+    const recordTimer = document.getElementById('recordTimer');
+    const recordedAudio = document.getElementById('recordedAudio');
+
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let recordingTimer = null;
+    let recordingStartTime = null;
+    const MAX_RECORD_TIME = 10000; // 10秒
+
+    async function startRecording() {
+      try {
+        console.log('[录音] 请求麦克风权限...');
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log('[录音] 麦克风权限获取成功');
+        mediaRecorder = new MediaRecorder(stream);
+        console.log('[录音] MediaRecorder 创建成功, mimeType:', mediaRecorder.mimeType);
+        recordedChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          console.log('[录音] ondataavailable, size:', e.data.size);
+          if (e.data.size > 0) {
+            recordedChunks.push(e.data);
+          }
+        };
+
+        mediaRecorder.onstop = () => {
+          console.log('[录音] onstop, chunks数量:', recordedChunks.length);
+          // 停止所有音轨
+          stream.getTracks().forEach(track => track.stop());
+          
+          // 创建音频并播放
+          if (recordedChunks.length > 0) {
+            const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+            console.log('[录音] Blob创建成功, size:', blob.size, 'type:', blob.type);
+            const audioUrl = URL.createObjectURL(blob);
+            console.log('[录音] 音频URL:', audioUrl);
+            recordedAudio.src = audioUrl;
+            recordedAudio.onloadeddata = () => {
+              console.log('[录音] 音频加载完成, 开始播放...');
+              recordedAudio.play().catch(err => console.error('[录音] 播放失败:', err));
+            };
+            recordedAudio.onerror = (err) => {
+              console.error('[录音] 音频加载错误:', err);
+            };
+          } else {
+            console.warn('[录音] 没有录制到数据');
+          }
+        };
+
+        mediaRecorder.onerror = (err) => {
+          console.error('[录音] MediaRecorder错误:', err);
+        };
+
+        console.log('[录音] 开始录制...');
+        mediaRecorder.start(100); // 每100ms收集一次数据
+        console.log('[录音] MediaRecorder状态:', mediaRecorder.state);
+        recordingStartTime = Date.now();
+        btnRecord.classList.add('recording');
+        recordProgress.classList.add('show');
+        
+        // 更新进度条
+        updateRecordProgress();
+        
+        // 10秒后自动停止
+        recordingTimer = setTimeout(() => {
+          stopRecording();
+        }, MAX_RECORD_TIME);
+
+      } catch (error) {
+        console.error('无法访问麦克风:', error);
+        alert('无法访问麦克风，请检查权限设置');
+      }
+    }
+
+    function updateRecordProgress() {
+      if (!recordingStartTime || !mediaRecorder || mediaRecorder.state !== 'recording') return;
+      
+      const elapsed = Date.now() - recordingStartTime;
+      const remaining = Math.max(0, MAX_RECORD_TIME - elapsed);
+      const percent = (remaining / MAX_RECORD_TIME) * 100;
+      
+      recordProgressBar.style.width = percent + '%';
+      recordTimer.textContent = Math.ceil(remaining / 1000);
+      
+      if (remaining > 0) {
+        requestAnimationFrame(updateRecordProgress);
+      }
+    }
+
+    function stopRecording() {
+      console.log('[录音] stopRecording 调用');
+      if (recordingTimer) {
+        clearTimeout(recordingTimer);
+        recordingTimer = null;
+      }
+      
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        console.log('[录音] 停止 MediaRecorder, 当前状态:', mediaRecorder.state);
+        mediaRecorder.stop();
+      } else {
+        console.log('[录音] MediaRecorder 状态:', mediaRecorder?.state);
+      }
+      
+      btnRecord.classList.remove('recording');
+      recordProgress.classList.remove('show');
+      recordProgressBar.style.width = '100%';
+      recordTimer.textContent = '10';
+      recordingStartTime = null;
+    }
+
+    // 按住开始录音，松开停止
+    btnRecord.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      startRecording();
+    });
+
+    btnRecord.addEventListener('pointerup', (e) => {
+      e.preventDefault();
+      stopRecording();
+    });
+
+    btnRecord.addEventListener('pointerleave', (e) => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        stopRecording();
+      }
+    });
+
+    btnRecord.addEventListener('pointercancel', (e) => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        stopRecording();
+      }
+    });
+
+    // ========== 发送祝福 ==========
+    const btnSendBlessing = document.getElementById('btnSendBlessing');
+    const sendSuccessOverlay = document.getElementById('sendSuccessOverlay');
+
+    btnSendBlessing.addEventListener('click', () => {
+      // 隐藏主内容
+      mainContent.style.display = 'none';
+      // 显示成功提示
+      sendSuccessOverlay.classList.add('show');
+    });
+
   </script>
 </body>
 </html>
