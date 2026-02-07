@@ -1,0 +1,1116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>图片手势预览（4:3 框）</title>
+  <!-- 字体会通过 JS 动态加载，只加载需要的文字 -->
+  <script src="tricolor.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121826;
+      --text: #e6edf3;
+      --muted: #9aa4b2;
+      --border: rgba(255,255,255,0.10);
+      --btn: #1f6feb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      padding: 12px;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .toolbar .left {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .btn-loading {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-weight: 600;
+      background: var(--btn);
+      color: white;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.2;
+    }
+
+    .frame {
+      margin-top: 12px;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      position: relative;
+      touch-action: none; /* 关键：关闭浏览器默认手势 */
+      user-select: none;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: none;
+      place-items: center;
+      z-index: 999;
+      padding: 16px;
+    }
+    .overlay.show {
+      display: grid;
+    }
+    .overlay-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      width: min(90vw, 360px);
+      color: var(--text);
+      text-align: center;
+    }
+    .overlay-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .overlay-bar {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .overlay-bar > span {
+      display: block;
+      height: 100%;
+      width: 45%;
+      background: var(--btn);
+      border-radius: inherit;
+      animation: loadingBar 1.2s ease-in-out infinite;
+    }
+    @keyframes loadingBar {
+      0% { transform: translateX(-100%); }
+      50% { transform: translateX(80%); }
+      100% { transform: translateX(220%); }
+    }
+    .overlay-hint {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .frame .placeholder {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      padding: 18px;
+      text-align: center;
+    }
+
+    .text-layer {
+      position: absolute;
+      left: 0;
+      top: 0;
+      padding: 0;
+      border-radius: 12px;
+      z-index: 10;
+      color: white;
+      font-family: 'CustomSubset', 'LXGW WenKai', cursive;
+      font-size: 18px;
+      line-height: 1.25;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+      pointer-events: auto;
+      touch-action: none;
+      white-space: pre-wrap;
+      word-break: break-word;
+      display: none;
+    }
+
+    #img {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+      -webkit-user-drag: none;
+      user-select: none;
+      pointer-events: none; /* 手势在 frame 上处理 */
+    }
+
+    .meta {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .caption {
+      margin-top: 12px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .caption label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .caption textarea {
+      width: 100%;
+      resize: none;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 16px;
+      line-height: 1.3;
+      outline: none;
+    }
+    .caption textarea:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .font-controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      align-items: center;
+    }
+    .size-controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .color-controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .color-controls button {
+      flex: 1;
+    }
+    .color-btn.black { background: #111; }
+    .color-btn.red { background: #d1242f; }
+    .color-btn.white { background: #ffffff; color: #111; }
+
+    /* 三色屏预览样式 */
+    .tricolor-section {
+      margin-top: 12px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .tricolor-section label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .tricolor-controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .tricolor-controls button {
+      flex: 1;
+      min-width: 80px;
+    }
+    .tricolor-controls select {
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 14px;
+      outline: none;
+    }
+    .tricolor-controls select:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .tricolor-preview {
+      margin-top: 10px;
+      display: none;
+    }
+    .tricolor-preview.show {
+      display: block;
+    }
+    .tricolor-preview canvas {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+    .tricolor-params {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .tricolor-params .param-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .tricolor-params label {
+      font-size: 11px;
+      color: var(--muted);
+      margin: 0;
+    }
+    .tricolor-params input[type="range"] {
+      width: 100%;
+      accent-color: var(--btn);
+    }
+    .tricolor-params .param-value {
+      font-size: 11px;
+      color: var(--text);
+      text-align: right;
+    }
+    .tricolor-params .param-group.checkbox-group {
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+    }
+    .tricolor-params input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--btn);
+    }
+
+    .size-controls button {
+      flex: 1;
+    }
+    .font-controls select {
+      flex: 1;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 14px;
+      outline: none;
+    }
+    .font-controls select:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    #fontStatus {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    code { color: #c9d1d9; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="toolbar">
+      <div class="left">
+        <button id="btnPick">选图片</button>
+        <button id="btnReset" class="secondary" disabled>重置</button>
+        <input id="file" type="file" accept="image/*" hidden />
+      </div>
+      <div class="hint">
+        单指拖动移动；双指缩放/移动（图片只显示在 4:3 框内）
+      </div>
+    </div>
+
+    <div id="frame" class="frame" aria-label="预览裁剪框">
+      <div id="placeholder" class="placeholder">
+        点击“选图片”从相册选择一张图片
+      </div>
+      <div id="textLayer" class="text-layer"></div>
+      <img id="img" alt="" />
+      <canvas id="tricolorOverlay" style="position:absolute;left:0;top:0;width:100%;height:100%;display:none;"></canvas>
+    </div>
+
+    <div class="caption">
+      <label for="captionInput">图片文字（会显示在图片上）</label>
+      <textarea id="captionInput" rows="2" placeholder="输入文字…（支持换行）"></textarea>
+      <div class="font-controls">
+        <select id="fontSelect">
+          <option value="AlimamaDaoLiTi">阿里妈妈刀隶体</option>
+          <option value="AlimamaDongFangDaKai">阿里妈妈东方大楷</option>
+          <option value="AlimamaShuHeiTi">阿里妈妈数黑体</option>
+          <option value="DingTalkJinBuTi">钉钉进步体</option>
+          <option value="TaoBaoMaiCaiTi">淘宝买菜体</option>
+        </select>
+        <button id="btnLoadFont">添加文字</button>
+      </div>
+      <div class="size-controls">
+        <button id="btnFontSizeDown" class="secondary">缩小</button>
+        <button id="btnFontSizeUp">放大</button>
+        <button id="btnTextDirection" class="secondary">竖</button>
+      </div>
+      <div class="color-controls">
+        <button id="btnColorBlack" class="color-btn black">黑</button>
+        <button id="btnColorRed" class="color-btn red">红</button>
+        <button id="btnColorWhite" class="color-btn white">白</button>
+      </div>
+      <div id="fontStatus"></div>
+    </div>
+
+    <!-- 三色屏效果 -->
+    <div class="tricolor-section">
+      <label>仿三色墨水屏效果</label>
+      <div class="tricolor-controls">
+        <button id="btnTricolorDownload" class="secondary" disabled>下载三色图</button>
+        <select id="outputScale">
+          <option value="1">1x</option>
+          <option value="2" selected>2x</option>
+          <option value="3">3x</option>
+          <option value="0">原图</option>
+        </select>
+      </div>
+      <div id="tricolorInfo" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
+      <!-- 隐藏的参数控件 -->
+      <div class="tricolor-params" style="display:none;">
+        <input type="range" id="bwThreshold" value="120" />
+        <input type="range" id="gammaSlider" value="90" />
+        <input type="range" id="autoLevelsSlider" value="15" />
+        <input type="range" id="satThreshold" value="40" />
+        <input type="range" id="valThreshold" value="20" />
+        <input type="range" id="redDelta" value="50" />
+        <input type="range" id="hueWidth" value="6" />
+        <input type="range" id="redThreshold" value="100" />
+        <input type="range" id="redBoost" value="15" />
+        <input type="checkbox" id="redDither" checked />
+        <input type="checkbox" id="autoLevels" checked />
+      </div>
+    </div>
+
+    <div class="meta">
+      <div id="status">未加载图片</div>
+      <div>建议用同局域网访问：<code>python -m http.server 8000</code></div>
+    </div>
+  </div>
+
+  <div id="loadingOverlay" class="overlay" role="dialog" aria-live="polite" aria-label="字体加载中">
+    <div class="overlay-card">
+      <div class="overlay-title">正在生成文字（v2）</div>
+      <div class="overlay-bar"><span></span></div>
+      <div class="overlay-hint">请稍后…</div>
+    </div>
+  </div>
+
+  <script>
+    const frame = document.getElementById('frame');
+    const img = document.getElementById('img');
+    const placeholder = document.getElementById('placeholder');
+    const textLayer = document.getElementById('textLayer');
+    const captionInput = document.getElementById('captionInput');
+    const fileInput = document.getElementById('file');
+    const btnPick = document.getElementById('btnPick');
+    const btnReset = document.getElementById('btnReset');
+    const statusEl = document.getElementById('status');
+    const fontSelect = document.getElementById('fontSelect');
+    const btnLoadFont = document.getElementById('btnLoadFont');
+    const fontStatus = document.getElementById('fontStatus');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const btnFontSizeDown = document.getElementById('btnFontSizeDown');
+    const btnFontSizeUp = document.getElementById('btnFontSizeUp');
+    const btnColorBlack = document.getElementById('btnColorBlack');
+    const btnColorRed = document.getElementById('btnColorRed');
+    const btnColorWhite = document.getElementById('btnColorWhite');
+
+    // 远程字体服务地址（已改为远程 HTTPS）
+    const FONT_API = 'https://www.twobaozi.com/qfp/font/dfont.php';
+    let currentFontFamily = 'LXGW WenKai Lite';
+
+
+    /** @type {Map<number, {x:number,y:number}>} */
+    const pointers = new Map();
+
+    const state = {
+      hasImage: false,
+      objectUrl: null,
+
+      // transform state
+      scale: 1,
+      tx: 0,
+      ty: 0,
+      minScale: 1,
+      maxScale: 6,
+
+      // gesture start snapshots
+      panStart: null,
+      pinchStart: null,
+
+      imgW: 0,
+      imgH: 0,
+    };
+
+    const fontState = {
+      size: 18,
+      min: 12,
+      max: 48,
+      step: 2,
+    };
+
+    const colorState = {
+      color: '#ffffff',
+    };
+
+    function applyTextShadowForColor(color) {
+      if (color === '#d1242f' || color === '#111111') {
+        textLayer.style.textShadow = '0 1px 2px rgba(255,255,255,0.8)';
+      } else {
+        textLayer.style.textShadow = '0 1px 2px rgba(0,0,0,0.45)';
+      }
+    }
+
+    // 文字拖动状态
+
+    const textState = {
+      x: null,
+      y: null,
+      dragStart: null,
+      pointerId: null,
+      margin: 12,
+    };
+
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function frameRect() {
+      return frame.getBoundingClientRect();
+    }
+
+    function toLocalPoint(ev) {
+      const r = frameRect();
+      return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+    }
+
+    function applyTransform() {
+      img.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
+      statusEl.textContent = state.hasImage
+        ? `scale=${state.scale.toFixed(3)} tx=${Math.round(state.tx)} ty=${Math.round(state.ty)}`
+        : '未加载图片';
+    }
+
+    function applyTextTransform() {
+      if (textState.x === null || textState.y === null) return;
+      textLayer.style.transform = `translate(${Math.round(textState.x)}px, ${Math.round(textState.y)}px)`;
+    }
+
+    function clampTextPosition() {
+      const r = frameRect();
+      const textW = textLayer.offsetWidth;
+      const textH = textLayer.offsetHeight;
+      const m = textState.margin;
+      if (!r.width || !r.height || !textW || !textH) return;
+
+      const minX = m;
+      const minY = m;
+      const maxX = Math.max(m, r.width - textW - m);
+      const maxY = Math.max(m, r.height - textH - m);
+
+      textState.x = clamp(textState.x, minX, maxX);
+      textState.y = clamp(textState.y, minY, maxY);
+      applyTextTransform();
+    }
+
+    function computeCoverTransform() {
+      const r = frameRect();
+      const fw = r.width;
+      const fh = r.height;
+      const iw = state.imgW;
+      const ih = state.imgH;
+
+      if (!fw || !fh || !iw || !ih) return;
+
+      // Cover: 图片至少覆盖框，不露底
+      const scale = Math.max(fw / iw, fh / ih);
+      state.minScale = scale;
+      state.maxScale = Math.max(scale * 6, scale + 0.0001);
+
+      state.scale = scale;
+      const dispW = iw * scale;
+      const dispH = ih * scale;
+
+      // 居中
+      state.tx = (fw - dispW) / 2;
+      state.ty = (fh - dispH) / 2;
+
+      clampTranslate();
+      applyTransform();
+    }
+
+    function clampTranslate() {
+      const r = frameRect();
+      const fw = r.width;
+      const fh = r.height;
+
+      const dispW = state.imgW * state.scale;
+      const dispH = state.imgH * state.scale;
+
+      // 保证不露底：tx in [fw-dispW, 0]，ty in [fh-dispH, 0]
+      // 若因数值误差出现 dispW < fw，则把它固定在中心。
+      if (dispW <= fw) {
+        state.tx = (fw - dispW) / 2;
+      } else {
+        state.tx = clamp(state.tx, fw - dispW, 0);
+      }
+
+      if (dispH <= fh) {
+        state.ty = (fh - dispH) / 2;
+      } else {
+        state.ty = clamp(state.ty, fh - dispH, 0);
+      }
+    }
+
+    function resetGestureSnapshots() {
+      state.panStart = null;
+      state.pinchStart = null;
+    }
+
+    function startPan(onlyPointerId) {
+      const p = pointers.get(onlyPointerId);
+      if (!p) return;
+      state.panStart = {
+        pointerId: onlyPointerId,
+        x0: p.x,
+        y0: p.y,
+        tx0: state.tx,
+        ty0: state.ty,
+      };
+      state.pinchStart = null;
+    }
+
+    function startPinch() {
+      const ids = [...pointers.keys()];
+      if (ids.length < 2) return;
+      const p1 = pointers.get(ids[0]);
+      const p2 = pointers.get(ids[1]);
+      if (!p1 || !p2) return;
+
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+
+      // 固定内容坐标点：content = (mid - translate) / scale
+      const content = {
+        x: (mid.x - state.tx) / state.scale,
+        y: (mid.y - state.ty) / state.scale,
+      };
+
+      state.pinchStart = {
+        dist0: dist,
+        scale0: state.scale,
+        content0: content,
+      };
+      state.panStart = null;
+    }
+
+    function updateFromPointers() {
+      const n = pointers.size;
+      if (!state.hasImage) return;
+      if (n === 1) {
+        const [id] = pointers.keys();
+        if (!state.panStart || state.panStart.pointerId !== id) startPan(id);
+        const p = pointers.get(id);
+        if (!p || !state.panStart) return;
+
+        state.tx = state.panStart.tx0 + (p.x - state.panStart.x0);
+        state.ty = state.panStart.ty0 + (p.y - state.panStart.y0);
+        clampTranslate();
+        applyTransform();
+        return;
+      }
+
+      if (n >= 2) {
+        if (!state.pinchStart) startPinch();
+        if (!state.pinchStart) return;
+
+        const ids = [...pointers.keys()];
+        const p1 = pointers.get(ids[0]);
+        const p2 = pointers.get(ids[1]);
+        if (!p1 || !p2) return;
+
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+
+        let nextScale = state.pinchStart.scale0 * (dist / state.pinchStart.dist0);
+        nextScale = clamp(nextScale, state.minScale, state.maxScale);
+
+        // newTranslate = mid - content0 * nextScale
+        state.scale = nextScale;
+        state.tx = mid.x - state.pinchStart.content0.x * nextScale;
+        state.ty = mid.y - state.pinchStart.content0.y * nextScale;
+
+        clampTranslate();
+        applyTransform();
+      }
+    }
+
+    function setImageFromFile(file) {
+      if (!file) return;
+      if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
+
+      const url = URL.createObjectURL(file);
+      state.objectUrl = url;
+      img.src = url;
+      placeholder.style.display = 'none';
+      btnReset.disabled = false;
+
+      img.onload = () => {
+        state.hasImage = true;
+        state.imgW = img.naturalWidth;
+        state.imgH = img.naturalHeight;
+        resetGestureSnapshots();
+        computeCoverTransform();
+        // 自动转换为三色并显示
+        setTimeout(autoConvertTricolor, 100);
+      };
+    }
+
+    /**
+     * 捕获当前 frame 内容 (含图片+文字)
+     * @param {number} scale - 输出缩放倍数，0 表示使用原图尺寸
+     */
+    function captureFrame(scale = 1) {
+      const r = frameRect();
+      const displayW = r.width;
+      const displayH = r.height;
+
+      // 计算输出尺寸
+      let outW, outH, renderScale;
+      if (scale === 0 && state.hasImage) {
+        const visibleInImgW = displayW / state.scale;
+        const visibleInImgH = displayH / state.scale;
+        outW = Math.round(visibleInImgW);
+        outH = Math.round(visibleInImgH);
+        renderScale = outW / displayW;
+      } else {
+        outW = Math.round(displayW * scale);
+        outH = Math.round(displayH * scale);
+        renderScale = scale;
+      }
+
+      const captureCanvas = document.createElement('canvas');
+      captureCanvas.width = outW;
+      captureCanvas.height = outH;
+      const ctx = captureCanvas.getContext('2d');
+
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, outW, outH);
+
+      if (state.hasImage && img.complete) {
+        ctx.save();
+        ctx.scale(renderScale, renderScale);
+        ctx.translate(state.tx, state.ty);
+        ctx.scale(state.scale, state.scale);
+        ctx.drawImage(img, 0, 0);
+        ctx.restore();
+      }
+
+      if (textLayer.style.display !== 'none' && textLayer.textContent) {
+        ctx.save();
+        ctx.scale(renderScale, renderScale);
+        ctx.translate(textState.x || 0, textState.y || 0);
+        ctx.font = `${fontState.size}px ${currentFontFamily}`;
+        ctx.fillStyle = colorState.color;
+        const lines = textLayer.textContent.split('\n');
+        const lineHeight = fontState.size * 1.25;
+        
+        if (textDirectionState.vertical) {
+          // 竖排文字：每个字符单独绘制
+          lines.forEach((line, lineIdx) => {
+            const chars = [...line];
+            chars.forEach((char, charIdx) => {
+              const x = -lineIdx * lineHeight;
+              const y = fontState.size + charIdx * fontState.size * 1.1;
+              ctx.fillText(char, x, y);
+            });
+          });
+        } else {
+          // 横排文字
+          lines.forEach((line, i) => {
+            ctx.fillText(line, 0, fontState.size + i * lineHeight);
+          });
+        }
+        ctx.restore();
+      }
+
+      return captureCanvas;
+    }
+
+    /**
+     * 自动转换三色效果并显示到 frame 上
+     */
+    function autoConvertTricolor() {
+      if (!state.hasImage) return;
+      
+      const tricolorOverlay = document.getElementById('tricolorOverlay');
+      const r = frameRect();
+      
+      // 使用 2x 缩放获得清晰效果
+      const scale = parseInt(outputScaleSelect.value) || 2;
+      const sourceCanvas = captureFrame(scale);
+      
+      tricolorInfo.textContent = `三色效果: ${sourceCanvas.width} × ${sourceCanvas.height} 像素`;
+
+      const converter = new TriColorConverter({
+        bwThreshold: parseInt(bwThresholdSlider.value),
+        gamma: parseInt(gammaSlider.value) / 100,
+        autoLevelsPercent: parseInt(autoLevelsSlider.value) / 10,
+        autoLevels: autoLevelsCheckbox.checked,
+        satThreshold: parseInt(satThresholdSlider.value) / 100,
+        valThreshold: parseInt(valThresholdSlider.value) / 100,
+        redDelta: parseInt(redDeltaSlider.value),
+        hueWidth: parseInt(hueWidthSlider.value) / 100,
+        redDither: redDitherCheckbox.checked,
+        redThreshold: parseInt(redThresholdSlider.value),
+        redBoost: parseInt(redBoostSlider.value) / 10,
+        serpentine: true,
+      });
+
+      lastTricolorResult = converter.convert(sourceCanvas);
+
+      // 显示到 overlay canvas
+      tricolorOverlay.width = lastTricolorResult.width;
+      tricolorOverlay.height = lastTricolorResult.height;
+      const ctx = tricolorOverlay.getContext('2d');
+      ctx.drawImage(lastTricolorResult, 0, 0);
+      tricolorOverlay.style.display = 'block';
+      
+      // 隐藏原图
+      img.style.visibility = 'hidden';
+      
+      btnTricolorDownload.disabled = false;
+    }
+
+    function updateCaption() {
+      const v = (captionInput.value || '').trimEnd();
+      if (!v) {
+        textLayer.style.display = 'none';
+        textLayer.textContent = '';
+        return;
+      }
+      textLayer.style.display = 'block';
+      textLayer.textContent = v;
+      // 应用当前字体
+      textLayer.style.fontFamily = currentFontFamily;
+      textLayer.style.fontSize = `${fontState.size}px`;
+      textLayer.style.color = colorState.color;
+      applyTextShadowForColor(colorState.color);
+
+      // 初始化文字位置（底部居中偏左）
+      if (textState.x === null || textState.y === null) {
+        const r = frameRect();
+        textState.x = textState.margin;
+        textState.y = Math.max(textState.margin, r.height - textLayer.offsetHeight - textState.margin);
+      }
+
+      clampTextPosition();
+    }
+
+    // 从远程加载字体子集
+    async function loadFontSubset() {
+      const text = captionInput.value.trim();
+      if (!text) {
+        fontStatus.textContent = '请先输入文字';
+        fontStatus.style.color = '#f85149';
+        return;
+      }
+
+      const fontName = fontSelect.value;
+      fontStatus.textContent = '正在加载字体...';
+      fontStatus.style.color = 'var(--muted)';
+      btnLoadFont.disabled = true;
+      btnLoadFont.classList.add('btn-loading');
+      loadingOverlay.classList.add('show');
+
+      try {
+        // 请求字体子集
+        const url = `${FONT_API}?font=${encodeURIComponent(fontName)}&text=${encodeURIComponent(text)}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error('字体加载失败: ' + response.status);
+        }
+
+        // 获取字体数据
+        const fontData = await response.arrayBuffer();
+        const fontType = response.headers.get('Content-Type');
+        const contentLength = response.headers.get('Content-Length');
+        const subsetStatus = response.headers.get('X-Subset-Status');
+        const subsetError = response.headers.get('X-Subset-Error');
+        let format = 'woff2';
+        if (fontType?.includes('ttf')) format = 'truetype';
+        else if (fontType?.includes('woff2')) format = 'woff2';
+        else if (fontType?.includes('woff')) format = 'woff';
+
+        // 定义字体名称
+        const customFontFamily = `CustomFont_${fontName}`;
+        
+        // 动态注册字体
+        const fontFace = new FontFace(customFontFamily, fontData, {
+          style: 'normal',
+          weight: 'normal'
+        });
+
+        await fontFace.load();
+        document.fonts.add(fontFace);
+
+        // 应用字体
+        currentFontFamily = customFontFamily;
+        textLayer.style.fontFamily = currentFontFamily;
+
+        const charCount = text.replace(/\s/g, '').length;
+        fontStatus.textContent = `✓ 已加载 ${fontName}（${charCount} 个字符）`;
+        fontStatus.style.color = '#3fb950';
+      } catch (error) {
+        console.error('字体加载失败:', error);
+        fontStatus.textContent = '✖ 字体加载失败: ' + error.message;
+        fontStatus.style.color = '#f85149';
+      } finally {
+        btnLoadFont.disabled = false;
+        btnLoadFont.classList.remove('btn-loading');
+        loadingOverlay.classList.remove('show');
+      }
+    }
+
+    btnPick.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files && fileInput.files[0];
+      setImageFromFile(file);
+    });
+
+    btnReset.addEventListener('click', () => {
+      if (!state.hasImage) return;
+      resetGestureSnapshots();
+      computeCoverTransform();
+    });
+
+    captionInput.addEventListener('input', updateCaption);
+    captionInput.addEventListener('change', updateCaption);
+    btnLoadFont.addEventListener('click', loadFontSubset);
+
+    function applyFontSize(nextSize) {
+      fontState.size = Math.max(fontState.min, Math.min(fontState.max, nextSize));
+      if (state.hasImage && (captionInput.value || '').trimEnd()) {
+        textLayer.style.fontSize = `${fontState.size}px`;
+        clampTextPosition();
+      }
+    }
+
+    btnFontSizeDown.addEventListener('click', () => {
+      applyFontSize(fontState.size - fontState.step);
+    });
+    btnFontSizeUp.addEventListener('click', () => {
+      applyFontSize(fontState.size + fontState.step);
+    });
+    btnLoadFont.addEventListener('click', loadFontSubset);
+
+    function applyTextColor(color) {
+      colorState.color = color;
+      textLayer.style.color = colorState.color;
+      applyTextShadowForColor(colorState.color);
+    }
+
+    btnColorBlack.addEventListener('click', () => applyTextColor('#111111'));
+    btnColorRed.addEventListener('click', () => applyTextColor('#d1242f'));
+    btnColorWhite.addEventListener('click', () => applyTextColor('#ffffff'));
+
+    // 文字方向切换
+    const btnTextDirection = document.getElementById('btnTextDirection');
+    const textDirectionState = { vertical: false };
+
+    function toggleTextDirection() {
+      textDirectionState.vertical = !textDirectionState.vertical;
+      if (textDirectionState.vertical) {
+        textLayer.style.writingMode = 'vertical-rl';
+        textLayer.style.textOrientation = 'upright';
+        btnTextDirection.textContent = '横';
+      } else {
+        textLayer.style.writingMode = 'horizontal-tb';
+        textLayer.style.textOrientation = 'mixed';
+        btnTextDirection.textContent = '竖';
+      }
+      clampTextPosition();
+    }
+
+    btnTextDirection.addEventListener('click', toggleTextDirection);
+
+    frame.addEventListener('pointerdown', (ev) => {
+      if (!state.hasImage) return;
+      frame.setPointerCapture(ev.pointerId);
+      const p = toLocalPoint(ev);
+      pointers.set(ev.pointerId, p);
+      if (pointers.size === 1) {
+        startPan(ev.pointerId);
+        // 手势开始时隐藏三色 overlay，显示原图
+        const tricolorOverlay = document.getElementById('tricolorOverlay');
+        if (tricolorOverlay) tricolorOverlay.style.display = 'none';
+        img.style.visibility = 'visible';
+      } else if (pointers.size === 2) {
+        startPinch();
+      }
+      ev.preventDefault();
+    });
+
+    textLayer.addEventListener('pointerdown', (ev) => {
+      if (textLayer.style.display === 'none') return;
+      textLayer.setPointerCapture(ev.pointerId);
+      const p = toLocalPoint(ev);
+      textState.pointerId = ev.pointerId;
+      textState.dragStart = {
+        x0: p.x,
+        y0: p.y,
+        tx0: textState.x ?? 0,
+        ty0: textState.y ?? 0,
+      };
+      ev.preventDefault();
+      ev.stopPropagation();
+    });
+
+    textLayer.addEventListener('pointermove', (ev) => {
+      if (textState.pointerId !== ev.pointerId || !textState.dragStart) return;
+      const p = toLocalPoint(ev);
+      textState.x = textState.dragStart.tx0 + (p.x - textState.dragStart.x0);
+      textState.y = textState.dragStart.ty0 + (p.y - textState.dragStart.y0);
+      clampTextPosition();
+      ev.preventDefault();
+      ev.stopPropagation();
+    });
+
+    function endTextDrag(ev) {
+      if (textState.pointerId !== ev.pointerId) return;
+      textState.pointerId = null;
+      textState.dragStart = null;
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+
+    textLayer.addEventListener('pointerup', endTextDrag);
+    textLayer.addEventListener('pointercancel', endTextDrag);
+
+    frame.addEventListener('pointermove', (ev) => {
+      if (!state.hasImage) return;
+      if (!pointers.has(ev.pointerId)) return;
+      pointers.set(ev.pointerId, toLocalPoint(ev));
+      updateFromPointers();
+      ev.preventDefault();
+    });
+
+    function endPointer(ev) {
+      if (!pointers.has(ev.pointerId)) return;
+      pointers.delete(ev.pointerId);
+
+      // 2->1 时，重建 pan 基线
+      if (pointers.size === 1) {
+        const [id] = pointers.keys();
+        startPan(id);
+      } else if (pointers.size === 0) {
+        resetGestureSnapshots();
+        // 手势结束后重新生成三色效果
+        if (state.hasImage) {
+          setTimeout(autoConvertTricolor, 50);
+        }
+      } else {
+        // 仍是多指，重建 pinch 基线
+        startPinch();
+      }
+
+      ev.preventDefault();
+    }
+
+    frame.addEventListener('pointerup', endPointer);
+    frame.addEventListener('pointercancel', endPointer);
+    frame.addEventListener('pointerleave', (ev) => {
+      // leave 可能不会触发 up，这里不强行结束，交给 up/cancel
+      ev.preventDefault();
+    });
+
+    // 窗口尺寸变化时重新 cover
+    window.addEventListener('resize', () => {
+      if (!state.hasImage) return;
+      resetGestureSnapshots();
+      computeCoverTransform();
+      clampTextPosition();
+    });
+
+    applyTransform();
+    updateCaption();
+
+    // ========== 三色墨水屏效果 ==========
+    const btnTricolorDownload = document.getElementById('btnTricolorDownload');
+    
+    // 参数控件 (隐藏的)
+    const bwThresholdSlider = document.getElementById('bwThreshold');
+    const gammaSlider = document.getElementById('gammaSlider');
+    const autoLevelsSlider = document.getElementById('autoLevelsSlider');
+    const satThresholdSlider = document.getElementById('satThreshold');
+    const valThresholdSlider = document.getElementById('valThreshold');
+    const redDeltaSlider = document.getElementById('redDelta');
+    const hueWidthSlider = document.getElementById('hueWidth');
+    const redThresholdSlider = document.getElementById('redThreshold');
+    const redBoostSlider = document.getElementById('redBoost');
+    const redDitherCheckbox = document.getElementById('redDither');
+    const autoLevelsCheckbox = document.getElementById('autoLevels');
+    const outputScaleSelect = document.getElementById('outputScale');
+    const tricolorInfo = document.getElementById('tricolorInfo');
+
+    let lastTricolorResult = null;
+
+    /**
+     * 下载三色图片
+     */
+    function downloadTricolor() {
+      if (!lastTricolorResult) return;
+
+      const link = document.createElement('a');
+      link.download = 'tricolor_' + Date.now() + '.png';
+      link.href = lastTricolorResult.toDataURL('image/png');
+      link.click();
+    }
+
+    btnTricolorDownload.addEventListener('click', downloadTricolor);
+  </script>
+</body>
+</html>
