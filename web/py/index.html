@@ -40,7 +40,29 @@
     .toolbar .left {
       display: flex;
       gap: 10px;
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .toolbar .left-actions {
+      display: flex;
+      gap: 10px;
       align-items: center;
+    }
+    .url-param {
+      color: #666;
+      font-size: 13px;
+      line-height: 1.2;
+      word-break: break-all;
+      margin-bottom: 6px;
+      display: none;
+    }
+    .initial-picker .url-param {
+      margin-bottom: 12px;
+      text-align: center;
+      max-width: 80vw;
+    }
+    .toolbar .url-param {
+      max-width: 60vw;
     }
     .btn-loading {
       opacity: 0.6;
@@ -509,6 +531,7 @@
 <body>
   <!-- 初始居中选择按钮 -->
   <div id="initialPicker" class="initial-picker">
+    <div id="urlParamInitial" class="url-param"></div>
     <button id="btnPickInitial">选择图片</button>
     <input id="fileInitial" type="file" accept="image/*" hidden />
   </div>
@@ -516,9 +539,12 @@
   <div id="mainContent" class="wrap main-content">
     <div class="toolbar hidden">
       <div class="left">
-        <button id="btnPick">选图片</button>
-        <button id="btnReset" class="secondary" disabled>重置</button>
-        <input id="file" type="file" accept="image/*" hidden />
+        <div id="urlParamToolbar" class="url-param"></div>
+        <div class="left-actions">
+          <button id="btnPick">选图片</button>
+          <button id="btnReset" class="secondary" disabled>重置</button>
+          <input id="file" type="file" accept="image/*" hidden />
+        </div>
       </div>
       <div class="hint">
         单指拖动移动；双指缩放/移动（图片只显示在 4:3 框内）
@@ -645,6 +671,7 @@
     const btnPickInitial = document.getElementById('btnPickInitial');
     const fileInitial = document.getElementById('fileInitial');
     const mainContent = document.getElementById('mainContent');
+    const urlParamInitial = document.getElementById('urlParamInitial');
 
     const frame = document.getElementById('frame');
     const img = document.getElementById('img');
@@ -654,6 +681,7 @@
     const fileInput = document.getElementById('file');
     const btnPick = document.getElementById('btnPick');
     const btnReset = document.getElementById('btnReset');
+    const urlParamToolbar = document.getElementById('urlParamToolbar');
     const fontSelect = document.getElementById('fontSelect');
     const btnLoadFont = document.getElementById('btnLoadFont');
     const fontStatus = document.getElementById('fontStatus');
@@ -679,6 +707,18 @@
     const outputScaleSelect = document.getElementById('outputScale');
     const tricolorInfo = document.getElementById('tricolorInfo');
     let lastTricolorResult = null;
+
+    const rawQuery = window.location.search ? window.location.search.slice(1) : '';
+    const urlParamText = rawQuery ? decodeURIComponent(rawQuery) : '';
+    [urlParamInitial, urlParamToolbar].forEach((el) => {
+      if (!el) return;
+      if (urlParamText) {
+        el.textContent = urlParamText;
+        el.style.display = 'block';
+      } else {
+        el.style.display = 'none';
+      }
+    });
 
     // 远程字体服务地址（已改为远程 HTTPS）
     const FONT_API = 'https://www.twobaozi.com/qfp/font/dfont.php';
