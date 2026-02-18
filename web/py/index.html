@@ -187,6 +187,9 @@
       word-break: break-word;
       display: none;
     }
+    .text-layer.preview-hidden {
+      opacity: 0;
+    }
 
     #img {
       position: absolute;
@@ -707,6 +710,7 @@
     const outputScaleSelect = document.getElementById('outputScale');
     const tricolorInfo = document.getElementById('tricolorInfo');
     let lastTricolorResult = null;
+    let tricolorRenderPending = false;
 
     const rawQuery = window.location.search ? window.location.search.slice(1) : '';
     const urlParamText = rawQuery ? decodeURIComponent(rawQuery) : '';
@@ -1073,6 +1077,15 @@
       return converter.convert(sourceCanvas);
     }
 
+    function scheduleTricolorRender() {
+      if (tricolorRenderPending) return;
+      tricolorRenderPending = true;
+      requestAnimationFrame(() => {
+        tricolorRenderPending = false;
+        autoConvertTricolor();
+      });
+    }
+
     function autoConvertTricolor() {
       if (!state.hasImage) return;
       
@@ -1114,6 +1127,7 @@
       }
       textLayer.style.display = 'block';
       textLayer.textContent = v;
+      textLayer.classList.add('preview-hidden');
       // 应用当前字体
       textLayer.style.fontFamily = currentFontFamily;
       textLayer.style.fontSize = `${fontState.size}px`;
@@ -1128,6 +1142,7 @@
       }
 
       clampTextPosition();
+      scheduleTricolorRender();
     }
 
     // 从远程加载字体子集
@@ -1260,6 +1275,7 @@
       if (state.hasImage && (captionInput.value || '').trimEnd()) {
         textLayer.style.fontSize = `${fontState.size}px`;
         clampTextPosition();
+        scheduleTricolorRender();
       }
     }
 
@@ -1275,6 +1291,7 @@
       colorState.color = color;
       textLayer.style.color = colorState.color;
       applyTextShadowForColor(colorState.color);
+      scheduleTricolorRender();
     }
 
     btnColorBlack.addEventListener('click', () => applyTextColor('#111111'));
@@ -1297,6 +1314,7 @@
         btnTextDirection.textContent = '竖';
       }
       clampTextPosition();
+      scheduleTricolorRender();
     }
 
     btnTextDirection.addEventListener('click', toggleTextDirection);
@@ -1341,6 +1359,7 @@
       textState.x = textState.dragStart.tx0 + (p.x - textState.dragStart.x0);
       textState.y = textState.dragStart.ty0 + (p.y - textState.dragStart.y0);
       clampTextPosition();
+      scheduleTricolorRender();
       ev.preventDefault();
       ev.stopPropagation();
     });
@@ -1349,6 +1368,7 @@
       if (textState.pointerId !== ev.pointerId) return;
       textState.pointerId = null;
       textState.dragStart = null;
+      scheduleTricolorRender();
       ev.preventDefault();
       ev.stopPropagation();
     }
