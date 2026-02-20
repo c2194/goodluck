@@ -1586,8 +1586,19 @@
 
     function buildImageBlob(scale = 2) {
       return new Promise((resolve, reject) => {
+        // 先用高分辨率捕获原图+文字
         const sourceCanvas = captureFrame(scale);
-        const tricolorCanvas = convertToTricolorCanvas(sourceCanvas);
+
+        // 先缩放到 400x300，再进行抖动转换（避免抖动后缩放破坏像素点阵）
+        const scaledCanvas = document.createElement('canvas');
+        scaledCanvas.width = 400;
+        scaledCanvas.height = 300;
+        const ctx = scaledCanvas.getContext('2d');
+        ctx.drawImage(sourceCanvas, 0, 0, 400, 300);
+
+        // 在目标分辨率上进行抖动
+        const tricolorCanvas = convertToTricolorCanvas(scaledCanvas);
+
         tricolorCanvas.toBlob((blob) => {
           if (!blob) {
             reject(new Error('图片生成失败'));

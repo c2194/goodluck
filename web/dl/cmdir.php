@@ -49,6 +49,95 @@ function generateBase62Key($length = 8) {
   return $key;
 }
 
+// API 模式：处理 reg 参数
+if (isset($_GET['reg'])) {
+  header('Content-Type: application/json; charset=utf-8');
+  $regMac = $_GET['reg'];
+  $error = '';
+  $hexMac = normalizeMacInput($regMac, $error);
+
+  if ($error !== '') {
+    echo json_encode([
+      'cmd' => 'reg',
+      're' => 'error',
+      'msg' => $error,
+      'monthDir' => null,
+      'macDir' => null
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+  }
+
+  $number = hexdec($hexMac);
+  $base62Mac = toBase62($number);
+  $base62Mac = str_pad($base62Mac, 9, 'a', STR_PAD_LEFT);
+
+  $monthYear = date('my');
+  $baseDir = __DIR__;
+  $monthDir = $monthYear;
+  $macDir = $base62Mac;
+  $monthDirPath = $baseDir . DIRECTORY_SEPARATOR . $monthDir;
+  $macDirPath = $monthDirPath . DIRECTORY_SEPARATOR . $macDir;
+
+  if (!is_dir($monthDirPath)) {
+    if (!mkdir($monthDirPath, 0777, true)) {
+      echo json_encode([
+        'cmd' => 'reg',
+        're' => 'error',
+        'msg' => '创建月份目录失败',
+        'monthDir' => $monthDir,
+        'macDir' => null
+      ], JSON_UNESCAPED_UNICODE);
+      exit;
+    }
+  }
+
+  if (!is_dir($macDirPath)) {
+    if (!mkdir($macDirPath, 0777, true)) {
+      echo json_encode([
+        'cmd' => 'reg',
+        're' => 'error',
+        'msg' => '创建 MAC 目录失败',
+        'monthDir' => $monthDir,
+        'macDir' => $macDir
+      ], JSON_UNESCAPED_UNICODE);
+      exit;
+    }
+  }
+
+  $jsonPath = $macDirPath . DIRECTORY_SEPARATOR . 'config.json';
+  if (!file_exists($jsonPath)) {
+    $config = [];
+    while (count($config) < 30) {
+      $key = generateBase62Key(8);
+      if (!array_key_exists($key, $config)) {
+        $config[$key] = [
+          'pw' => '',
+          'state' => '1'
+        ];
+      }
+    }
+    $jsonData = json_encode($config, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    if ($jsonData === false || file_put_contents($jsonPath, $jsonData) === false) {
+      echo json_encode([
+        'cmd' => 'reg',
+        're' => 'error',
+        'msg' => '写入配置失败',
+        'monthDir' => $monthDir,
+        'macDir' => $macDir
+      ], JSON_UNESCAPED_UNICODE);
+      exit;
+    }
+  }
+
+  echo json_encode([
+    'cmd' => 'reg',
+    're' => 'ok',
+    'monthDir' => $monthDir,
+    'macDir' => $macDir
+  ], JSON_UNESCAPED_UNICODE);
+  exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $inputMac = isset($_POST['mac']) ? trim($_POST['mac']) : '';
   $error = '';
