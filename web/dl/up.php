@@ -1,18 +1,37 @@
 
 <?php
-header('Content-Type: text/plain; charset=utf-8');
+header('Content-Type: text/html; charset=utf-8');
 
-$query = isset($_SERVER['QUERY_STRING']) ? trim($_SERVER['QUERY_STRING']) : '';
-if ($query === '') {
-	http_response_code(400);
-	echo '缺少参数。';
+$clientLogs = [];
+
+function add_client_log(string $message): void
+{
+	global $clientLogs;
+	$clientLogs[] = $message;
+}
+
+function respond(string $message, int $statusCode = 200): void
+{
+	global $clientLogs;
+	http_response_code($statusCode);
+	echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+	if (!empty($clientLogs)) {
+		echo "\n<script>\n";
+		foreach ($clientLogs as $log) {
+			echo 'console.log(' . json_encode($log, JSON_UNESCAPED_UNICODE) . ");\n";
+		}
+		echo "</script>\n";
+	}
 	exit;
 }
 
+$query = isset($_SERVER['QUERY_STRING']) ? trim($_SERVER['QUERY_STRING']) : '';
+if ($query === '') {
+	respond('缺少参数。', 400);
+}
+
 if (!preg_match('/^(\d{4})([A-Za-z0-9]{9})([A-Za-z0-9]{8})$/', $query, $matches)) {
-	http_response_code(400);
-	echo '参数格式不正确。';
-	exit;
+	respond('参数格式不正确。', 400);
 }
 
 $monthYear = $matches[1];
@@ -24,23 +43,17 @@ $macDir = $baseDir . DIRECTORY_SEPARATOR . $monthYear . DIRECTORY_SEPARATOR . $m
 $configPath = $macDir . DIRECTORY_SEPARATOR . 'config.json';
 
 if (!is_dir($macDir) || !is_file($configPath)) {
-	http_response_code(404);
-	echo '目标目录或配置不存在。';
-	exit;
+	respond('目标目录或配置不存在。', 404);
 }
 
 $configRaw = file_get_contents($configPath);
 $config = json_decode($configRaw, true);
 if (!is_array($config)) {
-	http_response_code(500);
-	echo '配置文件损坏。';
-	exit;
+	respond('配置文件损坏。', 500);
 }
 
 if (!array_key_exists($key, $config)) {
-	http_response_code(403);
-	echo '无效的 key。';
-	exit;
+	respond('无效的 key。', 403);
 }
 
 // 获取当前 state 并 +1
@@ -48,41 +61,54 @@ $currentState = isset($config[$key]['state']) ? intval($config[$key]['state']) :
 $newState = $currentState + 1;
 
 if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
-	http_response_code(400);
-	echo '图片上传失败。';
-	exit;
+	respond('图片上传失败。', 400);
 }
 
 // 文件名使用 key + state，如 Oel7saVb3.png
 $imagePath = $macDir . DIRECTORY_SEPARATOR . $key . $newState . '.png';
 if (!move_uploaded_file($_FILES['image']['tmp_name'], $imagePath)) {
-	http_response_code(500);
-	echo '保存图片失败。';
-	exit;
+	respond('保存图片失败。', 500);
 }
 
 // 调用 minpng.py 压缩图片
+$imgStatus = '图片压缩成功';
 $minpngScript = __DIR__ . DIRECTORY_SEPARATOR . 'minpng.py';
-$cmdImg = escapeshellcmd('python') . ' ' . escapeshellarg($minpngScript) . ' ' . escapeshellarg($imagePath) . ' ' . escapeshellarg($imagePath);
-exec($cmdImg, $imgOutput, $imgReturnCode);
+$cmdImg = escapeshellcmd('python3') . ' ' . escapeshellarg($minpngScript) . ' ' . escapeshellarg($imagePath) . ' ' . escapeshellarg($imagePath);
+$cmdImgWithErr = $cmdImg . ' 2>&1';
+exec($cmdImgWithErr, $imgOutput, $imgReturnCode);
 if ($imgReturnCode !== 0) {
-	error_log("图片压缩失败: " . implode("\n", $imgOutput));
+	$imgError = "图片压缩失败 (code {$imgReturnCode})";
+	error_log($imgError);
+	add_client_log($imgError);
+	add_client_log("图片压缩命令: {$cmdImg}");
+	if (!empty($imgOutput)) {
+		add_client_log("图片压缩输出:\n" . implode("\n", $imgOutput));
+	}
+	$imgStatus = '图片压缩失败';
 }
 
+$audioStatus = '音频未上传';
 if (isset($_FILES['audio']) && $_FILES['audio']['error'] === UPLOAD_ERR_OK) {
 	$audioPath = $macDir . DIRECTORY_SEPARATOR . $key . $newState . '.wav';
 	if (!move_uploaded_file($_FILES['audio']['tmp_name'], $audioPath)) {
-		http_response_code(500);
-		echo '保存音频失败。';
-		exit;
+		respond('保存音频失败。', 500);
 	}
 	// 调用 Python 脚本将 WAV 转换为 MP3
+	$audioStatus = '音频转换成功';
 	$pythonScript = __DIR__ . DIRECTORY_SEPARATOR . 'enc_au_pic.py';
-	$cmd = escapeshellcmd('python') . ' ' . escapeshellarg($pythonScript) . ' ' . escapeshellarg($audioPath);
-	exec($cmd, $output, $returnCode);
+	$cmd = escapeshellcmd('python3') . ' ' . escapeshellarg($pythonScript) . ' ' . escapeshellarg($audioPath);
+	$cmdWithErr = $cmd . ' 2>&1';
+	exec($cmdWithErr, $output, $returnCode);
 	if ($returnCode !== 0) {
 		// 转换失败，但不影响上传结果，仅记录警告
-		error_log("音频转换失败: " . implode("\n", $output));
+		$audioError = "音频转换失败 (code {$returnCode})";
+		error_log($audioError);
+		add_client_log($audioError);
+		add_client_log("音频转换命令: {$cmd}");
+		if (!empty($output)) {
+			add_client_log("音频转换输出:\n" . implode("\n", $output));
+		}
+		$audioStatus = '音频转换失败';
 	}
 }
 
@@ -90,4 +116,7 @@ if (isset($_FILES['audio']) && $_FILES['audio']['error'] === UPLOAD_ERR_OK) {
 $config[$key]['state'] = strval($newState);
 file_put_contents($configPath, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
-echo '上传成功。';
+$resultMessage = '上传成功。' . "\n" . $imgStatus . "\n" . $audioStatus;
+add_client_log($imgStatus);
+add_client_log($audioStatus);
+respond($resultMessage);

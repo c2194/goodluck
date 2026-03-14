@@ -41,4 +41,10 @@ foreach ($config as $k => $v) {
 	$result[$k] = isset($v['state']) ? intval($v['state']) : 0;
 }
 
+$result['SETUP'] = [
+	'systime' => strval(time()),
+	'sleep' => '15',
+	'attime' => '3000'
+];
+
 echo json_encode($result, JSON_UNESCAPED_UNICODE);

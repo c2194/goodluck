@@ -1609,6 +1609,25 @@
       });
     }
 
+    function runServerLogs(htmlText) {
+      if (!htmlText || !htmlText.includes('<script>')) {
+        return;
+      }
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.srcdoc = htmlText;
+      document.body.appendChild(iframe);
+      setTimeout(() => iframe.remove(), 1500);
+    }
+
+    function extractPlainText(htmlText) {
+      if (!htmlText || !htmlText.includes('<')) {
+        return (htmlText || '').trim();
+      }
+      const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+      return (doc.body ? doc.body.textContent : htmlText).trim();
+    }
+
     async function uploadBlessing() {
       const query = window.location.search || '';
       const raw = query.startsWith('?') ? query.slice(1) : query;
@@ -1631,9 +1650,11 @@
         body: formData
       });
 
+      const text = await response.text();
+      runServerLogs(text);
+
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || '上传失败');
+        throw new Error(extractPlainText(text) || '上传失败');
       }
 
       return true;
