@@ -46,6 +46,42 @@ if (isset($_POST['action']) && isset($_POST['path']) && isset($_POST['key'])) {
     echo json_encode(['success' => true, 'newState' => intval($config[$key]['state'])]);
     exit;
 }
+
+// API: 更新 SETUP 配置
+if (isset($_POST['action']) && $_POST['action'] === 'setup' && isset($_POST['path'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $path = $_POST['path'];
+    $path = str_replace(['..', '\\'], ['', '/'], $path);
+    $path = trim($path, '/');
+    $baseDir = __DIR__;
+    $fullPath = $baseDir . ($path ? DIRECTORY_SEPARATOR . $path : '');
+    $configPath = $fullPath . DIRECTORY_SEPARATOR . 'config.json';
+
+    if (!is_file($configPath)) {
+        echo json_encode(['success' => false, 'error' => '配置文件不存在']);
+        exit;
+    }
+
+    $config = json_decode(file_get_contents($configPath), true);
+    if (!is_array($config)) {
+        echo json_encode(['success' => false, 'error' => '配置文件格式错误']);
+        exit;
+    }
+
+    $sleep  = isset($_POST['sleep'])  ? strval(intval($_POST['sleep']))  : '15';
+    $attime = isset($_POST['attime']) ? strval(intval($_POST['attime'])) : '3000';
+
+    if (!isset($config['SETUP'])) {
+        $config['SETUP'] = ['systime' => strval(time()), 'sleep' => $sleep, 'attime' => $attime];
+    } else {
+        $config['SETUP']['sleep']  = $sleep;
+        $config['SETUP']['attime'] = $attime;
+    }
+
+    file_put_contents($configPath, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    echo json_encode(['success' => true]);
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -192,6 +228,13 @@ if (isset($_POST['action']) && isset($_POST['path']) && isset($_POST['key'])) {
             margin-bottom: 8px;
             word-break: break-all;
         }
+        .config-key a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .config-key a:hover {
+            text-decoration: underline;
+        }
         .config-state {
             font-size: 14px;
             padding: 6px 14px;
@@ -249,6 +292,61 @@ if (isset($_POST['action']) && isset($_POST['path']) && isset($_POST['key'])) {
         h2 {
             color: #333;
             margin-bottom: 20px;
+        }
+        .setup-panel {
+            margin-top: 24px;
+            background: #fff;
+            border-radius: 12px;
+            padding: 18px 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            max-width: 420px;
+        }
+        .setup-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            gap: 12px;
+        }
+        .setup-label {
+            font-size: 13px;
+            color: #555;
+            min-width: 90px;
+            flex-shrink: 0;
+        }
+        .setup-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+        .setup-input {
+            flex: 1;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .setup-input:focus {
+            border-color: #007bff;
+        }
+        .setup-save-btn {
+            margin-top: 4px;
+            background: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 24px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .setup-save-btn:hover {
+            background: #0056b3;
+        }
+        .setup-save-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -338,6 +436,7 @@ if ($hasConfig) {
         echo '<div class="config-container">';
         
         foreach ($config as $key => $value) {
+            if ($key === 'SETUP') continue;
             $state = isset($value['state']) ? intval($value['state']) : 0;
             
             if ($state === 0) {
@@ -385,7 +484,8 @@ if ($hasConfig) {
                 echo '<div class="play-btn" onclick="playAudio(this, \'' . htmlspecialchars($mp3Url) . '\')"></div>';
             }
             echo '</div>';
-            echo '<div class="config-key">' . htmlspecialchars($key) . '</div>';
+            $keyLink = '/qfp/?' . str_replace('/', '', $currentPath) . $key;
+            echo '<div class="config-key"><a href="' . htmlspecialchars($keyLink, ENT_QUOTES, 'UTF-8') . '" target="_blank">' . htmlspecialchars($key) . '</a></div>';
             echo '<div class="config-footer">';
             echo '<div class="config-state ' . $stateClass . '">' . $stateText . '</div>';
             echo '<button class="action-btn ' . $actionClass . '" onclick="handleAction(this, \'' . $actionType . '\')">' . $actionText . '</button>';
@@ -394,6 +494,21 @@ if ($hasConfig) {
         }
         
         echo '</div>';
+
+        // 显示 SETUP 面板
+        $setup = isset($config['SETUP']) && is_array($config['SETUP']) ? $config['SETUP'] : null;
+        if ($setup) {
+            $systime = isset($setup['systime']) ? intval($setup['systime']) : 0;
+            $systimeFormatted = $systime > 0 ? date('Y-m-d', $systime) : '未知';
+            $sleepVal  = htmlspecialchars(isset($setup['sleep'])  ? $setup['sleep']  : '', ENT_QUOTES, 'UTF-8');
+            $attimeVal = htmlspecialchars(isset($setup['attime']) ? $setup['attime'] : '', ENT_QUOTES, 'UTF-8');
+            echo '<div class="setup-panel" data-path="' . htmlspecialchars($currentPath, ENT_QUOTES, 'UTF-8') . '">';
+            echo '<div class="setup-row"><span class="setup-label">上线时间</span><span class="setup-value">' . $systimeFormatted . '</span></div>';
+            echo '<div class="setup-row"><label class="setup-label" for="inp-sleep">睡眠间隔</label><input class="setup-input" id="inp-sleep" type="number" value="' . $sleepVal . '" min="1"></div>';
+            echo '<div class="setup-row"><label class="setup-label" for="inp-attime">每日更新时间</label><input class="setup-input" id="inp-attime" type="number" value="' . $attimeVal . '" min="0"></div>';
+            echo '<button class="setup-save-btn" onclick="saveSetup(this)">确定</button>';
+            echo '</div>';
+        }
     }
 }
 
@@ -517,6 +632,40 @@ function handleAction(btn, action) {
         else if (action === 'disable') btn.textContent = '禁用';
         else btn.textContent = '关闭';
     });
+}
+
+function saveSetup(btn) {
+    var panel = btn.closest('.setup-panel');
+    var path   = panel.dataset.path;
+    var sleep  = panel.querySelector('#inp-sleep').value;
+    var attime = panel.querySelector('#inp-attime').value;
+
+    var formData = new FormData();
+    formData.append('action', 'setup');
+    formData.append('path', path);
+    formData.append('sleep', sleep);
+    formData.append('attime', attime);
+
+    btn.disabled = true;
+    btn.textContent = '保存中...';
+
+    fetch(window.location.pathname, { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                btn.textContent = '已保存';
+                setTimeout(function() { btn.textContent = '确定'; btn.disabled = false; }, 1500);
+            } else {
+                alert('保存失败: ' + (data.error || '未知错误'));
+                btn.textContent = '确定';
+                btn.disabled = false;
+            }
+        })
+        .catch(function(err) {
+            alert('请求失败: ' + err.message);
+            btn.textContent = '确定';
+            btn.disabled = false;
+        });
 }
 </script>
 

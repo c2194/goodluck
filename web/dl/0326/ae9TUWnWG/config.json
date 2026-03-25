@@ -118,5 +118,10 @@
     "ZuONMsMb": {
         "pw": "",
         "state": "1"
+    },
+    "SETUP": {
+        "systime": "1773557738",
+        "sleep": "15",
+        "attime": "3000"
     }
 }

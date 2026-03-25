@@ -116,6 +116,11 @@ if (isset($_GET['reg'])) {
         ];
       }
     }
+    $config['SETUP'] = [
+      'systime' => strval(time()),
+      'sleep' => '15',
+      'attime' => '3000'
+    ];
     $jsonData = json_encode($config, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     if ($jsonData === false || file_put_contents($jsonPath, $jsonData) === false) {
       echo json_encode([
@@ -179,6 +184,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
           }
         }
+        $config['SETUP'] = [
+          'systime' => strval(time()),
+          'sleep' => '15',
+          'attime' => '3000'
+        ];
 
         $jsonPath = $macDir . DIRECTORY_SEPARATOR . 'config.json';
         $jsonData = json_encode($config, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);

@@ -42,9 +42,29 @@ def nearest_palette_index(r: int, g: int, b: int) -> int:
 
 
 def minimize_tricolor_png(input_path: Path, output_path: Path) -> None:
-    """Convert image to minimal 3-color paletted PNG."""
+    """Convert image to minimal 3-color paletted PNG.
+
+    Processing pipeline:
+      1. Pad to 300x400 (white fill, no scaling, original centered horizontally).
+      2. Rotate 90° clockwise → 400x300.
+      3. Quantize to 3-color palette.
+    """
     with Image.open(input_path) as img:
         src = img.convert("RGB")
+        w, h = src.size
+
+        # Step 1: pad to 300x400, center horizontally, white fill
+        target_w, target_h = 300, 400
+        if w != target_w or h != target_h:
+            padded = Image.new("RGB", (target_w, target_h), (255, 255, 255))
+            offset_x = 0
+            offset_y = (target_h - h) // 2
+            padded.paste(src, (offset_x, offset_y))
+            src = padded
+
+        # Step 2: rotate 90° counter-clockwise → 400x300
+        src = src.transpose(Image.Transpose.ROTATE_90)
+
         w, h = src.size
         pix = src.load()
 
