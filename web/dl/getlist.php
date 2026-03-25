@@ -18,33 +18,34 @@ $monthYear = $matches[1];
 $mac62 = $matches[2];
 $key = $matches[3];
 
-$baseDir = __DIR__;
-$macDir = $baseDir . DIRECTORY_SEPARATOR . $monthYear . DIRECTORY_SEPARATOR . $mac62;
-$configPath = $macDir . DIRECTORY_SEPARATOR . 'config.json';
+require_once __DIR__ . '/db.php';
+$pdo = getDb();
 
-if (!is_dir($macDir) || !is_file($configPath)) {
+$stmtDev = $pdo->prepare('SELECT * FROM devices WHERE month_year = ? AND mac_b62 = ?');
+$stmtDev->execute([$monthYear, $mac62]);
+$device = $stmtDev->fetch();
+
+if (!$device) {
 	http_response_code(404);
-	echo json_encode(['error' => '目标目录或配置不存在。']);
+	echo json_encode(['error' => '设备未注册。']);
 	exit;
 }
 
-$configRaw = file_get_contents($configPath);
-$config = json_decode($configRaw, true);
-if (!is_array($config)) {
-	http_response_code(500);
-	echo json_encode(['error' => '配置文件损坏。']);
-	exit;
-}
+$stmtEnt = $pdo->prepare('SELECT key, state FROM entries WHERE device_id = ?');
+$stmtEnt->execute([$device['id']]);
 
 $result = [];
-foreach ($config as $k => $v) {
-	$result[$k] = isset($v['state']) ? intval($v['state']) : 0;
+foreach ($stmtEnt->fetchAll() as $e) {
+	$result[$e['key']] = intval($e['state']);
 }
 
 $result['SETUP'] = [
-	'systime' => strval(time()),
-	'sleep' => '15',
-	'attime' => '3000'
+	'systime'    => strval(time()),
+	'sleep'      => strval($device['sleep']      ?? 15),
+	'sleep_low'  => strval($device['sleep_low']  ?? 30),
+	'attime'     => strval($device['attime']      ?? 0),
+	'time_start' => strval($device['time_start']  ?? 0),
+	'time_end'   => strval($device['time_end']    ?? 1439),
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE);

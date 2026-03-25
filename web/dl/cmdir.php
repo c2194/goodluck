@@ -49,6 +49,8 @@ function generateBase62Key($length = 8) {
   return $key;
 }
 
+require_once __DIR__ . '/db.php';
+
 // API 模式：处理 reg 参数
 if (isset($_GET['reg'])) {
   header('Content-Type: application/json; charset=utf-8');
@@ -104,34 +106,29 @@ if (isset($_GET['reg'])) {
     }
   }
 
-  $jsonPath = $macDirPath . DIRECTORY_SEPARATOR . 'config.json';
-  if (!file_exists($jsonPath)) {
-    $config = [];
-    while (count($config) < 30) {
-      $key = generateBase62Key(8);
-      if (!array_key_exists($key, $config)) {
-        $config[$key] = [
-          'pw' => '',
-          'state' => '1'
-        ];
-      }
+  // 写入数据库：注册设备 + 补足 30 条 entries（幂等，重复注册安全）
+  $pdo = getDb();
+  try {
+    $pdo->beginTransaction();
+    $pdo->prepare('INSERT OR IGNORE INTO devices (month_year, mac_b62, mac_hex, registered_at) VALUES (?, ?, ?, ?)')
+        ->execute([$monthYear, $base62Mac, $hexMac, time()]);
+    $stmtId = $pdo->prepare('SELECT id FROM devices WHERE month_year = ? AND mac_b62 = ?');
+    $stmtId->execute([$monthYear, $base62Mac]);
+    $deviceId = (int)$stmtId->fetchColumn();
+    $stmtEnt   = $pdo->prepare('INSERT OR IGNORE INTO entries (device_id, key, pw, state) VALUES (?, ?, \'\', 1)');
+    $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM entries WHERE device_id = ?');
+    $stmtCount->execute([$deviceId]);
+    $cnt = (int)$stmtCount->fetchColumn();
+    while ($cnt < 30) {
+      $stmtEnt->execute([$deviceId, generateBase62Key(8)]);
+      $stmtCount->execute([$deviceId]);
+      $cnt = (int)$stmtCount->fetchColumn();
     }
-    $config['SETUP'] = [
-      'systime' => strval(time()),
-      'sleep' => '15',
-      'attime' => '3000'
-    ];
-    $jsonData = json_encode($config, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-    if ($jsonData === false || file_put_contents($jsonPath, $jsonData) === false) {
-      echo json_encode([
-        'cmd' => 'reg',
-        're' => 'error',
-        'msg' => '写入配置失败',
-        'monthDir' => $monthDir,
-        'macDir' => $macDir
-      ], JSON_UNESCAPED_UNICODE);
-      exit;
-    }
+    $pdo->commit();
+  } catch (Throwable $e) {
+    $pdo->rollBack();
+    echo json_encode(['cmd' => 'reg', 're' => 'error', 'msg' => '数据库写入失败: ' . $e->getMessage(), 'monthDir' => $monthDir, 'macDir' => $macDir], JSON_UNESCAPED_UNICODE);
+    exit;
   }
 
   echo json_encode([
@@ -174,30 +171,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
 
       if ($message === '') {
-        $config = [];
-        while (count($config) < 30) {
-          $key = generateBase62Key(8);
-          if (!array_key_exists($key, $config)) {
-            $config[$key] = [
-              'pw' => '',
-              'state' => '1'
-            ];
+        // 写入数据库：注册设备 + 补足 30 条 entries
+        $pdo = getDb();
+        try {
+          $pdo->beginTransaction();
+          $pdo->prepare('INSERT OR IGNORE INTO devices (month_year, mac_b62, mac_hex, registered_at) VALUES (?, ?, ?, ?)')
+              ->execute([$monthYear, $base62Mac, $hexMac, time()]);
+          $stmtId = $pdo->prepare('SELECT id FROM devices WHERE month_year = ? AND mac_b62 = ?');
+          $stmtId->execute([$monthYear, $base62Mac]);
+          $deviceId = (int)$stmtId->fetchColumn();
+          $stmtEnt   = $pdo->prepare('INSERT OR IGNORE INTO entries (device_id, key, pw, state) VALUES (?, ?, \'\', 1)');
+          $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM entries WHERE device_id = ?');
+          $stmtCount->execute([$deviceId]);
+          $cnt = (int)$stmtCount->fetchColumn();
+          while ($cnt < 30) {
+            $stmtEnt->execute([$deviceId, generateBase62Key(8)]);
+            $stmtCount->execute([$deviceId]);
+            $cnt = (int)$stmtCount->fetchColumn();
           }
-        }
-        $config['SETUP'] = [
-          'systime' => strval(time()),
-          'sleep' => '15',
-          'attime' => '3000'
-        ];
-
-        $jsonPath = $macDir . DIRECTORY_SEPARATOR . 'config.json';
-        $jsonData = json_encode($config, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-        if ($jsonData === false) {
-          $message = '生成 JSON 失败。';
-        } elseif (file_put_contents($jsonPath, $jsonData) === false) {
-          $message = '写入 JSON 失败。';
-        } else {
-          $message = '目录创建成功：' . $monthYear . '/' . $base62Mac;
+          $pdo->commit();
+          $message = '注册成功：' . $monthYear . '/' . $base62Mac;
+        } catch (Throwable $e) {
+          $pdo->rollBack();
+          $message = '数据库写入失败：' . $e->getMessage();
         }
       }
     }

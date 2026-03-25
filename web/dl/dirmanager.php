@@ -1,4 +1,66 @@
 <?php
+// DB API (GET)
+if (isset($_GET['dbapi'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    require_once __DIR__ . '/db.php';
+    $pdo = getDb();
+    $dbapi = $_GET['dbapi'];
+    if ($dbapi === 'devices') {
+        $stmt = $pdo->query('SELECT * FROM devices ORDER BY month_year DESC, registered_at DESC');
+        echo json_encode($stmt->fetchAll());
+        exit;
+    }
+    if ($dbapi === 'entries' && isset($_GET['device_id'])) {
+        $stmt = $pdo->prepare('SELECT * FROM entries WHERE device_id = ? ORDER BY key');
+        $stmt->execute([intval($_GET['device_id'])]);
+        echo json_encode($stmt->fetchAll());
+        exit;
+    }
+    echo json_encode(['error' => 'unknown dbapi']);
+    exit;
+}
+
+// DB 操作 (POST)
+if (isset($_POST['action']) && in_array($_POST['action'], ['db_entry', 'db_setup'], true)) {
+    header('Content-Type: application/json; charset=utf-8');
+    require_once __DIR__ . '/db.php';
+    $pdo = getDb();
+    if ($_POST['action'] === 'db_entry') {
+        $deviceId = intval($_POST['device_id'] ?? 0);
+        $key      = preg_replace('/[^A-Za-z0-9]/', '', $_POST['key'] ?? '');
+        $act      = $_POST['entry_action'] ?? '';
+        if ($deviceId <= 0 || strlen($key) !== 8) {
+            echo json_encode(['success' => false, 'error' => '参数无效']);
+            exit;
+        }
+        if ($act === 'enable') {
+            $pdo->prepare('UPDATE entries SET state=1 WHERE device_id=? AND key=?')->execute([$deviceId, $key]);
+        } elseif ($act === 'disable') {
+            $pdo->prepare('UPDATE entries SET state=0 WHERE device_id=? AND key=?')->execute([$deviceId, $key]);
+        }
+        $stmt = $pdo->prepare('SELECT state FROM entries WHERE device_id=? AND key=?');
+        $stmt->execute([$deviceId, $key]);
+        $row = $stmt->fetch();
+        echo json_encode(['success' => true, 'newState' => intval($row['state'])]);
+        exit;
+    }
+    if ($_POST['action'] === 'db_setup') {
+        $deviceId = intval($_POST['device_id'] ?? 0);
+        $sleepNormal = intval($_POST['sleep_normal'] ?? ($_POST['sleep'] ?? 15));
+        $sleepLow    = intval($_POST['sleep_low']    ?? $sleepNormal);
+        $attime     = max(0, min(1439, intval($_POST['attime']      ?? 0)));
+        $timeStart  = max(0, min(1439, intval($_POST['time_start']   ?? 0)));
+        $timeEnd    = max(0, min(1439, intval($_POST['time_end']     ?? 1439)));
+        if ($deviceId <= 0) {
+            echo json_encode(['success' => false, 'error' => '参数无效']);
+            exit;
+        }
+        $pdo->prepare('UPDATE devices SET sleep=?, sleep_low=?, attime=?, time_start=?, time_end=? WHERE id=?')->execute([$sleepNormal, $sleepLow, $attime, $timeStart, $timeEnd, $deviceId]);
+        echo json_encode(['success' => true]);
+        exit;
+    }
+}
+
 // API 处理
 if (isset($_POST['action']) && isset($_POST['path']) && isset($_POST['key'])) {
     header('Content-Type: application/json; charset=utf-8');
@@ -310,7 +372,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'setup' && isset($_POST['pat
         .setup-label {
             font-size: 13px;
             color: #555;
-            min-width: 90px;
+            min-width: 120px;
             flex-shrink: 0;
         }
         .setup-value {
@@ -348,9 +410,84 @@ if (isset($_POST['action']) && $_POST['action'] === 'setup' && isset($_POST['pat
             opacity: 0.6;
             cursor: not-allowed;
         }
+        /* ---- 标签切换 ---- */
+        .tab-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background: #fff;
+            cursor: pointer;
+            font-size: 14px;
+            color: #555;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .tab-btn:hover { background: #f0f0f0; }
+        .tab-active {
+            background: #007bff;
+            color: #fff;
+            border-color: #007bff;
+        }
+        /* ---- 数据库设备列表 ---- */
+        .db-device-row {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+        .db-device-row-inner {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px 20px;
+            padding: 14px 20px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .db-device-row-inner:hover { background: #f8f9fa; }
+        .db-device-mac {
+            font-weight: 700;
+            font-size: 16px;
+            color: #333;
+            min-width: 100px;
+        }
+        .db-device-info {
+            font-size: 13px;
+            color: #666;
+        }
+        .db-toggle-icon {
+            margin-left: auto;
+            color: #999;
+            font-size: 14px;
+            transition: transform 0.2s;
+        }
+        .db-device-row.expanded .db-toggle-icon { transform: rotate(180deg); }
+        .db-entries-panel {
+            padding: 0 20px 16px;
+            border-top: 1px solid #f0f0f0;
+        }
+        .db-loading {
+            padding: 16px;
+            color: #999;
+            font-size: 14px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
+
+<div class="tab-bar">
+    <button id="tab-dir" class="tab-btn tab-active" onclick="switchTab('dir')">📁 目录视图</button>
+    <button id="tab-db"  class="tab-btn"            onclick="switchTab('db')">🗄 数据库视图</button>
+</div>
+
+<div id="dir-view">
 
 <?php
 $baseDir = __DIR__;
@@ -667,7 +804,326 @@ function saveSetup(btn) {
             btn.disabled = false;
         });
 }
+
+// ---- 数据库视图 ----
+var dbDevicesCache = null;
+var dbEntriesCache = {};
+
+function checkAndPlayDb(btn) {
+    var mp3Url = btn.dataset.mp3;
+    playAudio(btn, mp3Url);
+}
+
+// 图片加载完成后检测对应音频是否存在，显示播放按钮
+document.addEventListener('load', function(e) {
+    if (e.target.tagName === 'IMG' && e.target.classList.contains('config-img')) {
+        var wrapper = e.target.closest('.config-img-wrapper');
+        if (!wrapper) return;
+        var playBtn = wrapper.querySelector('.db-play-btn');
+        if (!playBtn) return;
+        var mp3Url = playBtn.dataset.mp3;
+        var probe = new Image(); // 借用 fetch HEAD 检测音频
+        fetch(mp3Url, { method: 'HEAD' })
+            .then(function(r) { if (r.ok) playBtn.style.display = ''; })
+            .catch(function() {});
+    }
+}, true);
+
+function switchTab(tab) {
+    var dirView = document.getElementById('dir-view');
+    var dbView  = document.getElementById('db-view');
+    var tabDir  = document.getElementById('tab-dir');
+    var tabDb   = document.getElementById('tab-db');
+    if (tab === 'dir') {
+        dirView.style.display = '';
+        dbView.style.display  = 'none';
+        tabDir.classList.add('tab-active');
+        tabDb.classList.remove('tab-active');
+    } else {
+        dirView.style.display = 'none';
+        dbView.style.display  = '';
+        tabDir.classList.remove('tab-active');
+        tabDb.classList.add('tab-active');
+        loadDbDevices();
+    }
+}
+
+function minsToTime(m) {
+    m = parseInt(m);
+    if (isNaN(m) || m < 0 || m > 1439) m = 0;
+    var h = Math.floor(m / 60), mm = m % 60;
+    return (h < 10 ? '0' : '') + h + ':' + (mm < 10 ? '0' : '') + mm;
+}
+
+function loadDbDevices() {
+    if (dbDevicesCache !== null) { renderDbDevices(dbDevicesCache); return; }
+    document.getElementById('db-devices-list').innerHTML = '<div class="db-loading">加载中…</div>';
+    fetch('?dbapi=devices')
+        .then(function(r) { return r.json(); })
+        .then(function(data) { dbDevicesCache = data; renderDbDevices(data); })
+        .catch(function(e) {
+            document.getElementById('db-devices-list').innerHTML =
+                '<div class="empty-msg">加载失败: ' + e.message + '</div>';
+        });
+}
+
+function renderDbDevices(devices) {
+    var list = document.getElementById('db-devices-list');
+    if (!devices || !devices.length) {
+        list.innerHTML = '<div class="empty-msg">数据库暂无设备记录</div>';
+        return;
+    }
+    var groups = {};
+    devices.forEach(function(d) {
+        if (!groups[d.month_year]) groups[d.month_year] = [];
+        groups[d.month_year].push(d);
+    });
+    var html = '';
+    Object.keys(groups).sort().reverse().forEach(function(my) {
+        var month = parseInt(my.substring(0, 2));
+        var year  = '20' + my.substring(2, 4);
+        html += '<h2 style="margin:20px 0 12px">' + year + '年' + month + '月</h2>';
+        groups[my].forEach(function(d) {
+            var regDate = new Date(d.registered_at * 1000).toLocaleDateString('zh-CN');
+            var hexFmt  = d.mac_hex.replace(/(.{2})(?=.)/g, '$1:');
+            var sleepNormal = (d.sleep !== null && d.sleep !== undefined) ? d.sleep : 15;
+            var sleepLow = (d.sleep_low !== null && d.sleep_low !== undefined) ? d.sleep_low : sleepNormal;
+            html += '<div class="db-device-row" id="db-device-' + d.id + '">';
+            html += '<div class="db-device-row-inner" onclick="toggleDeviceEntries(' + d.id + ')">';
+            html += '<div class="db-device-mac">' + d.mac_b62 + '</div>';
+            html += '<div class="db-device-info">' + hexFmt + '</div>';
+            html += '<div class="db-device-info">注册: ' + regDate + '</div>';
+            var tsDisp = (d.time_start != null) ? minsToTime(d.time_start) : '00:00';
+            var teDisp = (d.time_end   != null) ? minsToTime(d.time_end)   : '23:59';
+            html += '<div class="db-device-info">祝福切换间隔 ' + sleepNormal + 's(正常) / ' + sleepLow + 's(低电量) / 更新时间 ' + minsToTime(d.attime) + '</div>';
+            html += '<div class="db-device-info">祝福进行时间 ' + tsDisp + ' ~ ' + teDisp + '</div>';
+            html += '<span class="db-toggle-icon">▼</span>';
+            html += '</div>';
+            html += '<div class="db-entries-panel" id="db-entries-' + d.id + '" style="display:none"></div>';
+            html += '</div>';
+        });
+    });
+    list.innerHTML = html;
+}
+
+function toggleDeviceEntries(deviceId) {
+    var row   = document.getElementById('db-device-'  + deviceId);
+    var panel = document.getElementById('db-entries-' + deviceId);
+    if (!row || !panel) return;
+    if (panel.style.display !== 'none') {
+        panel.style.display = 'none';
+        row.classList.remove('expanded');
+        return;
+    }
+    row.classList.add('expanded');
+    if (dbEntriesCache[deviceId]) {
+        renderDbEntries(panel, dbEntriesCache[deviceId], deviceId);
+        panel.style.display = '';
+        return;
+    }
+    panel.innerHTML = '<div class="db-loading">加载中…</div>';
+    panel.style.display = '';
+    fetch('?dbapi=entries&device_id=' + deviceId)
+        .then(function(r) { return r.json(); })
+        .then(function(data) { dbEntriesCache[deviceId] = data; renderDbEntries(panel, data, deviceId); })
+        .catch(function(e) { panel.innerHTML = '<div class="empty-msg">加载失败: ' + e.message + '</div>'; });
+}
+
+function renderDbEntries(panel, entries, deviceId) {
+    if (!entries || !entries.length) {
+        panel.innerHTML = '<div class="empty-msg">无条目记录</div>';
+        return;
+    }
+    // 找到设备信息，用于拼接图片/音频路径
+    var device = null;
+    if (dbDevicesCache) {
+        for (var i = 0; i < dbDevicesCache.length; i++) {
+            if (dbDevicesCache[i].id == deviceId) { device = dbDevicesCache[i]; break; }
+        }
+    }
+    var imgBase = device ? (device.month_year + '/' + device.mac_b62 + '/') : '';
+
+    var html = '<div class="config-container" style="margin-top:12px;padding-bottom:4px">';
+    entries.forEach(function(e) {
+        var state = parseInt(e.state);
+        var stateText, stateClass, actText, actClass, actType;
+        if (state === 0) {
+            stateText = '已禁用'; stateClass = 'state-disabled';
+            actText = '开启';    actClass = 'btn-enable';  actType = 'enable';
+        } else if (state === 1) {
+            stateText = '未启用'; stateClass = 'state-inactive';
+            actText = '禁用';    actClass = 'btn-disable'; actType = 'disable';
+        } else {
+            stateText = '上传 ' + state + ' 次'; stateClass = 'state-active';
+            actText = '禁用'; actClass = 'btn-disable'; actType = 'disable';
+        }
+        var imgUrl = imgBase + e.key + state + '.png';
+        var mp3Url = imgBase + e.key + state + '.mp3';
+        html += '<div class="config-item" data-key="' + e.key + '" data-device-id="' + deviceId + '" data-state="' + state + '" data-img-base="' + imgBase + '">';
+        html += '<div class="config-img-wrapper">';
+        if (imgBase) {
+            html += '<img class="config-img" src="' + imgUrl + '" alt="' + e.key + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">';
+            html += '<div class="config-img-placeholder" style="display:none">无图片</div>';
+            html += '<div class="play-btn db-play-btn" style="display:none" data-mp3="' + mp3Url + '" onclick="checkAndPlayDb(this)"></div>';
+        } else {
+            html += '<div class="config-img-placeholder">无图片</div>';
+        }
+        html += '</div>';
+        html += '<div class="config-key">' + e.key + '</div>';
+        html += '<div class="config-footer">';
+        html += '<div class="config-state ' + stateClass + '">' + stateText + '</div>';
+        html += '<button class="action-btn ' + actClass + '" onclick="handleDbAction(this,\'' + actType + '\')">' + actText + '</button>';
+        html += '</div>';
+        html += '</div>';
+    });
+    html += '</div>';
+    if (dbDevicesCache) {
+        var device = null;
+        for (var i = 0; i < dbDevicesCache.length; i++) {
+            if (dbDevicesCache[i].id == deviceId) { device = dbDevicesCache[i]; break; }
+        }
+        if (device) {
+            var regDate = new Date(device.registered_at * 1000).toLocaleDateString('zh-CN');
+            var sleepNormal = (device.sleep !== null && device.sleep !== undefined) ? device.sleep : 15;
+            var sleepLow = (device.sleep_low !== null && device.sleep_low !== undefined) ? device.sleep_low : sleepNormal;
+            html += '<div class="setup-panel" style="margin-top:16px" data-device-id="' + deviceId + '">';
+            html += '<div class="setup-row"><span class="setup-label">注册时间</span><span class="setup-value">' + regDate + '</span></div>';
+            html += '<div class="setup-row"><label class="setup-label" for="db-sleep-normal-' + deviceId + '">祝福切换间隔时间</label><input class="setup-input" id="db-sleep-normal-' + deviceId + '" type="number" value="' + sleepNormal + '" min="1"><span style="font-size:12px;color:#999;margin-left:4px">正常电量(秒)</span></div>';
+            html += '<div class="setup-row"><span class="setup-label"></span><input class="setup-input" id="db-sleep-low-' + deviceId + '" type="number" value="' + sleepLow + '" min="1"><span style="font-size:12px;color:#999;margin-left:4px">低电量(秒)</span></div>';
+            var attimeMins  = (device.attime >= 0 && device.attime <= 1439) ? device.attime : 0;
+            var timeStartMins = (device.time_start != null && device.time_start >= 0) ? device.time_start : 0;
+            var timeEndMins   = (device.time_end   != null && device.time_end   >= 0) ? device.time_end   : 1439;
+            html += '<div class="setup-row"><label class="setup-label" for="db-attime-' + deviceId + '">更新时间</label><input class="setup-input" id="db-attime-' + deviceId + '" type="time" value="' + minsToTime(attimeMins) + '"><span style="font-size:12px;color:#999;margin-left:4px">每天更新时刻</span></div>';
+            html += '<div class="setup-row"><label class="setup-label" for="db-tstart-' + deviceId + '">祝福进行时间</label><input class="setup-input" id="db-tstart-' + deviceId + '" type="time" value="' + minsToTime(timeStartMins) + '"><span style="font-size:12px;color:#999;margin-left:4px">开始</span></div>';
+            html += '<div class="setup-row"><span class="setup-label"></span><input class="setup-input" id="db-tend-' + deviceId + '" type="time" value="' + minsToTime(timeEndMins) + '"><span style="font-size:12px;color:#999;margin-left:4px">结束</span></div>';
+            html += '<button class="setup-save-btn" onclick="saveDbSetup(this,' + deviceId + ')">保存</button>';
+            html += '</div>';
+        }
+    }
+    panel.innerHTML = html;
+}
+
+function handleDbAction(btn, action) {
+    var item     = btn.closest('.config-item');
+    var key      = item.dataset.key;
+    var deviceId = item.dataset.deviceId;
+    var fd = new FormData();
+    fd.append('action', 'db_entry');
+    fd.append('device_id', deviceId);
+    fd.append('key', key);
+    fd.append('entry_action', action);
+    btn.disabled = true;
+    btn.textContent = '处理中…';
+    fetch(window.location.pathname, { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var ns = data.newState;
+                item.dataset.state = ns;
+                var stateEl = item.querySelector('.config-state');
+                stateEl.classList.remove('state-disabled', 'state-inactive', 'state-active');
+                if (ns === 0) {
+                    stateEl.textContent = '已禁用'; stateEl.classList.add('state-disabled');
+                    btn.textContent = '开启'; btn.className = 'action-btn btn-enable';
+                    btn.onclick = function() { handleDbAction(this, 'enable'); };
+                } else if (ns === 1) {
+                    stateEl.textContent = '未启用'; stateEl.classList.add('state-inactive');
+                    btn.textContent = '禁用'; btn.className = 'action-btn btn-disable';
+                    btn.onclick = function() { handleDbAction(this, 'disable'); };
+                } else {
+                    stateEl.textContent = '上传 ' + ns + ' 次'; stateEl.classList.add('state-active');
+                    btn.textContent = '禁用'; btn.className = 'action-btn btn-disable';
+                    btn.onclick = function() { handleDbAction(this, 'disable'); };
+                }
+                if (dbEntriesCache[deviceId]) {
+                    var arr = dbEntriesCache[deviceId];
+                    for (var i = 0; i < arr.length; i++) {
+                        if (arr[i].key === key) { arr[i].state = ns; break; }
+                    }
+                }
+                // 刷新图片（state 变化后文件名随之改变）
+                var imgBase = item.dataset.imgBase || '';
+                if (imgBase) {
+                    var imgEl   = item.querySelector('.config-img');
+                    var playBtn = item.querySelector('.db-play-btn');
+                    if (imgEl) {
+                        imgEl.style.display = '';
+                        imgEl.src = imgBase + key + ns + '.png';
+                        if (playBtn) {
+                            playBtn.style.display = 'none';
+                            playBtn.dataset.mp3 = imgBase + key + ns + '.mp3';
+                        }
+                    }
+                }
+            } else {
+                alert('操作失败: ' + (data.error || '未知错误'));
+            }
+            btn.disabled = false;
+        })
+        .catch(function(e) {
+            alert('请求失败: ' + e.message);
+            btn.textContent = action === 'enable' ? '开启' : '禁用';
+            btn.disabled = false;
+        });
+}
+
+function saveDbSetup(btn, deviceId) {
+    var sleepNormalVal = document.getElementById('db-sleep-normal-' + deviceId).value;
+    var sleepLowVal    = document.getElementById('db-sleep-low-'    + deviceId).value;
+    var attimeStr  = document.getElementById('db-attime-'  + deviceId).value;
+    var tstartStr  = document.getElementById('db-tstart-'  + deviceId).value;
+    var tendStr    = document.getElementById('db-tend-'    + deviceId).value;
+    function timeTomins(s) { var p = (s||'0:0').split(':'); return parseInt(p[0]||0)*60+parseInt(p[1]||0); }
+    var atMins     = timeTomins(attimeStr);
+    var tStartMins = timeTomins(tstartStr);
+    var tEndMins   = timeTomins(tendStr);
+    var fd = new FormData();
+    fd.append('action', 'db_setup');
+    fd.append('device_id', deviceId);
+    fd.append('sleep_normal', sleepNormalVal);
+    fd.append('sleep_low', sleepLowVal);
+    fd.append('attime', atMins);
+    fd.append('time_start', tStartMins);
+    fd.append('time_end', tEndMins);
+    btn.disabled = true;
+    btn.textContent = '保存中…';
+    fetch(window.location.pathname, { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                if (dbDevicesCache) {
+                    for (var i = 0; i < dbDevicesCache.length; i++) {
+                        if (dbDevicesCache[i].id == deviceId) {
+                            dbDevicesCache[i].sleep = parseInt(sleepNormalVal);
+                            dbDevicesCache[i].sleep_low = parseInt(sleepLowVal);
+                            dbDevicesCache[i].attime = atMins;
+                            dbDevicesCache[i].time_start = tStartMins;
+                            dbDevicesCache[i].time_end = tEndMins;
+                            break;
+                        }
+                    }
+                }
+                btn.textContent = '已保存';
+                setTimeout(function() { btn.textContent = '保存'; btn.disabled = false; }, 1500);
+            } else {
+                alert('保存失败');
+                btn.textContent = '保存';
+                btn.disabled = false;
+            }
+        })
+        .catch(function(e) {
+            alert('请求失败: ' + e.message);
+            btn.textContent = '保存';
+            btn.disabled = false;
+        });
+}
 </script>
+
+</div><!-- #dir-view -->
+
+<div id="db-view" style="display:none">
+    <div id="db-devices-list"></div>
+</div>
 
 </body>
 </html>
