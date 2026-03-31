@@ -34,16 +34,18 @@ def wav_to_mp3(wav_path, keep_original=False):
         # -y: 覆盖已有文件
         # -i: 输入文件
         # -ac 1: 单声道
-        # -b:a 16k: 比特率 16kbps
-        # -ar 16000: 采样率 16000Hz
+        # -b:a 8k: 比特率 8kbps
+        # -ar 8000: 采样率 8000Hz
+        # -af apad=pad_dur=5: 末尾追加 5 秒静音
         # -c:a libmp3lame: 使用 LAME MP3 编码器
         cmd = [
             'ffmpeg',
             '-y',
             '-i', wav_path,
             '-ac', '1',
-            '-b:a', '16k',
-            '-ar', '16000',
+            '-b:a', '8k',
+            '-ar', '8000',
+            '-af', 'apad=pad_dur=5',
             '-c:a', 'libmp3lame',
             mp3_path
         ]

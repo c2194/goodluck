@@ -8,7 +8,15 @@ if ($query === '') {
 	exit;
 }
 
-if (!preg_match('/^(\d{4})([A-Za-z0-9]{9})([A-Za-z0-9]{8})$/', $query, $matches)) {
+// 分离主参数和附加参数（如 &lbs=...）
+$parts = explode('&', $query, 2);
+$mainParam = $parts[0];
+$extraParams = [];
+if (isset($parts[1])) {
+	parse_str($parts[1], $extraParams);
+}
+
+if (!preg_match('/^(\d{4})([A-Za-z0-9]{9})([A-Za-z0-9]{8})$/', $mainParam, $matches)) {
 	http_response_code(400);
 	echo json_encode(['error' => '参数格式不正确。']);
 	exit;
@@ -31,6 +39,16 @@ if (!$device) {
 	exit;
 }
 
+// 记录基站定位信息 (cell=MNC,MCC,LAC,CellID,Signal)
+if (isset($extraParams['cell']) && $extraParams['cell'] !== '') {
+	$cell = $extraParams['cell'];
+	// 校验格式：逗号分隔的数字/十六进制值
+	if (preg_match('/^[\dA-Fa-f]+(,[\dA-Fa-f]+){2,}$/', $cell)) {
+		$pdo->prepare('UPDATE devices SET cell=?, cell_at=? WHERE id=?')
+		    ->execute([$cell, time(), $device['id']]);
+	}
+}
+
 $stmtEnt = $pdo->prepare('SELECT key, state FROM entries WHERE device_id = ?');
 $stmtEnt->execute([$device['id']]);
 
@@ -46,6 +64,7 @@ $result['SETUP'] = [
 	'attime'     => strval($device['attime']      ?? 0),
 	'time_start' => strval($device['time_start']  ?? 0),
 	'time_end'   => strval($device['time_end']    ?? 1439),
+	'volume'     => strval($device['volume']      ?? 5),
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE);

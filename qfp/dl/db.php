@@ -51,6 +51,9 @@ function getDb(): PDO {
     if (!in_array('sleep_low',  $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN sleep_low  INTEGER NOT NULL DEFAULT 30');
     if (!in_array('time_start', $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN time_start INTEGER NOT NULL DEFAULT 0');
     if (!in_array('time_end',   $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN time_end   INTEGER NOT NULL DEFAULT 1439');
+    if (!in_array('volume',     $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN volume     INTEGER NOT NULL DEFAULT 5');
+    if (!in_array('cell',       $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN cell       TEXT    NOT NULL DEFAULT \'\'');
+    if (!in_array('cell_at',    $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN cell_at    INTEGER NOT NULL DEFAULT 0');
 
     return $pdo;
 }

@@ -51,11 +51,12 @@ if (isset($_POST['action']) && in_array($_POST['action'], ['db_entry', 'db_setup
         $attime     = max(0, min(1439, intval($_POST['attime']      ?? 0)));
         $timeStart  = max(0, min(1439, intval($_POST['time_start']   ?? 0)));
         $timeEnd    = max(0, min(1439, intval($_POST['time_end']     ?? 1439)));
+        $volume     = max(0, min(10,   intval($_POST['volume']       ?? 5)));
         if ($deviceId <= 0) {
             echo json_encode(['success' => false, 'error' => '参数无效']);
             exit;
         }
-        $pdo->prepare('UPDATE devices SET sleep=?, sleep_low=?, attime=?, time_start=?, time_end=? WHERE id=?')->execute([$sleepNormal, $sleepLow, $attime, $timeStart, $timeEnd, $deviceId]);
+        $pdo->prepare('UPDATE devices SET sleep=?, sleep_low=?, attime=?, time_start=?, time_end=?, volume=? WHERE id=?')->execute([$sleepNormal, $sleepLow, $attime, $timeStart, $timeEnd, $volume, $deviceId]);
         echo json_encode(['success' => true]);
         exit;
     }
@@ -132,12 +133,14 @@ if (isset($_POST['action']) && $_POST['action'] === 'setup' && isset($_POST['pat
 
     $sleep  = isset($_POST['sleep'])  ? strval(intval($_POST['sleep']))  : '15';
     $attime = isset($_POST['attime']) ? strval(intval($_POST['attime'])) : '3000';
+    $volume = isset($_POST['volume']) ? strval(max(0, min(10, intval($_POST['volume'])))) : '5';
 
     if (!isset($config['SETUP'])) {
-        $config['SETUP'] = ['systime' => strval(time()), 'sleep' => $sleep, 'attime' => $attime];
+        $config['SETUP'] = ['systime' => strval(time()), 'sleep' => $sleep, 'attime' => $attime, 'volume' => $volume];
     } else {
         $config['SETUP']['sleep']  = $sleep;
         $config['SETUP']['attime'] = $attime;
+        $config['SETUP']['volume'] = $volume;
     }
 
     file_put_contents($configPath, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
@@ -209,6 +212,11 @@ if (isset($_POST['action']) && $_POST['action'] === 'setup' && isset($_POST['pat
         .dir-name {
             font-size: 16px;
             color: #333;
+        }
+        .dir-meta {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
         }
         .config-container {
             display: flex;
@@ -639,10 +647,12 @@ if ($hasConfig) {
             $systimeFormatted = $systime > 0 ? date('Y-m-d', $systime) : '未知';
             $sleepVal  = htmlspecialchars(isset($setup['sleep'])  ? $setup['sleep']  : '', ENT_QUOTES, 'UTF-8');
             $attimeVal = htmlspecialchars(isset($setup['attime']) ? $setup['attime'] : '', ENT_QUOTES, 'UTF-8');
+            $volumeVal = htmlspecialchars(isset($setup['volume']) ? $setup['volume'] : '5', ENT_QUOTES, 'UTF-8');
             echo '<div class="setup-panel" data-path="' . htmlspecialchars($currentPath, ENT_QUOTES, 'UTF-8') . '">';
             echo '<div class="setup-row"><span class="setup-label">上线时间</span><span class="setup-value">' . $systimeFormatted . '</span></div>';
             echo '<div class="setup-row"><label class="setup-label" for="inp-sleep">睡眠间隔</label><input class="setup-input" id="inp-sleep" type="number" value="' . $sleepVal . '" min="1"></div>';
             echo '<div class="setup-row"><label class="setup-label" for="inp-attime">每日更新时间</label><input class="setup-input" id="inp-attime" type="number" value="' . $attimeVal . '" min="0"></div>';
+            echo '<div class="setup-row"><label class="setup-label" for="inp-volume">音量</label><input class="setup-input" id="inp-volume" type="number" value="' . $volumeVal . '" min="0" max="10"></div>';
             echo '<button class="setup-save-btn" onclick="saveSetup(this)">确定</button>';
             echo '</div>';
         }
@@ -776,12 +786,14 @@ function saveSetup(btn) {
     var path   = panel.dataset.path;
     var sleep  = panel.querySelector('#inp-sleep').value;
     var attime = panel.querySelector('#inp-attime').value;
+    var volume = panel.querySelector('#inp-volume').value;
 
     var formData = new FormData();
     formData.append('action', 'setup');
     formData.append('path', path);
     formData.append('sleep', sleep);
     formData.append('attime', attime);
+    formData.append('volume', volume);
 
     btn.disabled = true;
     btn.textContent = '保存中...';
@@ -808,6 +820,7 @@ function saveSetup(btn) {
 // ---- 数据库视图 ----
 var dbDevicesCache = null;
 var dbEntriesCache = {};
+var dbState = { level: 'months', monthYear: null, deviceId: null };
 
 function checkAndPlayDb(btn) {
     var mp3Url = btn.dataset.mp3;
@@ -822,7 +835,6 @@ document.addEventListener('load', function(e) {
         var playBtn = wrapper.querySelector('.db-play-btn');
         if (!playBtn) return;
         var mp3Url = playBtn.dataset.mp3;
-        var probe = new Image(); // 借用 fetch HEAD 检测音频
         fetch(mp3Url, { method: 'HEAD' })
             .then(function(r) { if (r.ok) playBtn.style.display = ''; })
             .catch(function() {});
@@ -855,78 +867,124 @@ function minsToTime(m) {
     return (h < 10 ? '0' : '') + h + ':' + (mm < 10 ? '0' : '') + mm;
 }
 
+function dbFormatMonthYear(my) {
+    if (/^\d{4}$/.test(my)) {
+        return '20' + my.substring(2, 4) + '年' + parseInt(my.substring(0, 2)) + '月';
+    }
+    return my;
+}
+
 function loadDbDevices() {
-    if (dbDevicesCache !== null) { renderDbDevices(dbDevicesCache); return; }
+    if (dbDevicesCache !== null) { renderDbView(); return; }
     document.getElementById('db-devices-list').innerHTML = '<div class="db-loading">加载中…</div>';
+    document.getElementById('db-breadcrumb').style.display = 'none';
     fetch('?dbapi=devices')
         .then(function(r) { return r.json(); })
-        .then(function(data) { dbDevicesCache = data; renderDbDevices(data); })
+        .then(function(data) { dbDevicesCache = data; renderDbView(); })
         .catch(function(e) {
             document.getElementById('db-devices-list').innerHTML =
                 '<div class="empty-msg">加载失败: ' + e.message + '</div>';
         });
 }
 
-function renderDbDevices(devices) {
+function renderDbView() {
+    if (dbState.level === 'months') renderDbMonths();
+    else if (dbState.level === 'devices') renderDbDevicesForMonth();
+    else renderDbEntriesView();
+}
+
+function renderDbBreadcrumb(parts) {
+    var bc = document.getElementById('db-breadcrumb');
+    bc.style.display = '';
+    var html = '<a onclick="dbNavTo(\'months\')">根目录</a>';
+    parts.forEach(function(p) {
+        html += '<span>/</span><a onclick="' + p.onclick + '">' + p.label + '</a>';
+    });
+    bc.innerHTML = html;
+}
+
+function dbNavTo(level, monthYear, deviceId) {
+    dbState.level = level;
+    dbState.monthYear = monthYear || null;
+    dbState.deviceId = deviceId || null;
+    renderDbView();
+}
+
+function renderDbMonths() {
+    renderDbBreadcrumb([]);
     var list = document.getElementById('db-devices-list');
-    if (!devices || !devices.length) {
+    if (!dbDevicesCache || !dbDevicesCache.length) {
         list.innerHTML = '<div class="empty-msg">数据库暂无设备记录</div>';
         return;
     }
-    var groups = {};
-    devices.forEach(function(d) {
-        if (!groups[d.month_year]) groups[d.month_year] = [];
-        groups[d.month_year].push(d);
+    var months = {};
+    dbDevicesCache.forEach(function(d) {
+        if (!months[d.month_year]) months[d.month_year] = 0;
+        months[d.month_year]++;
     });
-    var html = '';
-    Object.keys(groups).sort().reverse().forEach(function(my) {
-        var month = parseInt(my.substring(0, 2));
-        var year  = '20' + my.substring(2, 4);
-        html += '<h2 style="margin:20px 0 12px">' + year + '年' + month + '月</h2>';
-        groups[my].forEach(function(d) {
-            var regDate = new Date(d.registered_at * 1000).toLocaleDateString('zh-CN');
-            var hexFmt  = d.mac_hex.replace(/(.{2})(?=.)/g, '$1:');
-            var sleepNormal = (d.sleep !== null && d.sleep !== undefined) ? d.sleep : 15;
-            var sleepLow = (d.sleep_low !== null && d.sleep_low !== undefined) ? d.sleep_low : sleepNormal;
-            html += '<div class="db-device-row" id="db-device-' + d.id + '">';
-            html += '<div class="db-device-row-inner" onclick="toggleDeviceEntries(' + d.id + ')">';
-            html += '<div class="db-device-mac">' + d.mac_b62 + '</div>';
-            html += '<div class="db-device-info">' + hexFmt + '</div>';
-            html += '<div class="db-device-info">注册: ' + regDate + '</div>';
-            var tsDisp = (d.time_start != null) ? minsToTime(d.time_start) : '00:00';
-            var teDisp = (d.time_end   != null) ? minsToTime(d.time_end)   : '23:59';
-            html += '<div class="db-device-info">祝福切换间隔 ' + sleepNormal + 's(正常) / ' + sleepLow + 's(低电量) / 更新时间 ' + minsToTime(d.attime) + '</div>';
-            html += '<div class="db-device-info">祝福进行时间 ' + tsDisp + ' ~ ' + teDisp + '</div>';
-            html += '<span class="db-toggle-icon">▼</span>';
-            html += '</div>';
-            html += '<div class="db-entries-panel" id="db-entries-' + d.id + '" style="display:none"></div>';
-            html += '</div>';
-        });
+    var keys = Object.keys(months).sort().reverse();
+    var html = '<div class="container">';
+    keys.forEach(function(my) {
+        var count = months[my];
+        html += '<div class="dir-item" onclick="dbNavTo(\'devices\',\'' + my + '\')">';
+        html += '<div><span class="dir-name">' + dbFormatMonthYear(my) + '</span>';
+        html += '<div class="dir-meta">' + count + ' 台设备</div></div>';
+        html += '</div>';
     });
+    html += '</div>';
     list.innerHTML = html;
 }
 
-function toggleDeviceEntries(deviceId) {
-    var row   = document.getElementById('db-device-'  + deviceId);
-    var panel = document.getElementById('db-entries-' + deviceId);
-    if (!row || !panel) return;
-    if (panel.style.display !== 'none') {
-        panel.style.display = 'none';
-        row.classList.remove('expanded');
+function renderDbDevicesForMonth() {
+    var my = dbState.monthYear;
+    var monthLabel = dbFormatMonthYear(my);
+    renderDbBreadcrumb([
+        { label: monthLabel, onclick: 'dbNavTo(\'devices\',\'' + my + '\')' }
+    ]);
+    var list = document.getElementById('db-devices-list');
+    var devices = (dbDevicesCache || []).filter(function(d) { return d.month_year === my; });
+    if (!devices.length) {
+        list.innerHTML = '<div class="empty-msg">暂无设备</div>';
         return;
     }
-    row.classList.add('expanded');
+    var html = '<div class="container">';
+    devices.forEach(function(d) {
+        var regDate = d.registered_at ? new Date(d.registered_at * 1000).toLocaleDateString('zh-CN') : '';
+        html += '<div class="dir-item" onclick="dbNavTo(\'entries\',\'' + my + '\',' + d.id + ')">';
+        html += '<div><span class="dir-name">' + d.mac_b62 + '</span>';
+        if (regDate) html += '<div class="dir-meta">注册: ' + regDate + '</div>';
+        html += '</div>';
+        html += '</div>';
+    });
+    html += '</div>';
+    list.innerHTML = html;
+}
+
+function renderDbEntriesView() {
+    var deviceId = dbState.deviceId;
+    var my = dbState.monthYear;
+    var device = null;
+    if (dbDevicesCache) {
+        for (var i = 0; i < dbDevicesCache.length; i++) {
+            if (dbDevicesCache[i].id == deviceId) { device = dbDevicesCache[i]; break; }
+        }
+    }
+    var monthLabel = dbFormatMonthYear(my);
+    var deviceLabel = device ? device.mac_b62 : ('设备' + deviceId);
+    renderDbBreadcrumb([
+        { label: monthLabel, onclick: 'dbNavTo(\'devices\',\'' + my + '\')' },
+        { label: deviceLabel, onclick: 'dbNavTo(\'entries\',\'' + my + '\',' + deviceId + ')' }
+    ]);
+    var list = document.getElementById('db-devices-list');
     if (dbEntriesCache[deviceId]) {
-        renderDbEntries(panel, dbEntriesCache[deviceId], deviceId);
-        panel.style.display = '';
+        renderDbEntries(list, dbEntriesCache[deviceId], deviceId);
         return;
     }
-    panel.innerHTML = '<div class="db-loading">加载中…</div>';
-    panel.style.display = '';
+    list.innerHTML = '<div class="db-loading">加载中…</div>';
     fetch('?dbapi=entries&device_id=' + deviceId)
         .then(function(r) { return r.json(); })
-        .then(function(data) { dbEntriesCache[deviceId] = data; renderDbEntries(panel, data, deviceId); })
-        .catch(function(e) { panel.innerHTML = '<div class="empty-msg">加载失败: ' + e.message + '</div>'; });
+        .then(function(data) { dbEntriesCache[deviceId] = data; renderDbEntries(list, data, deviceId); })
+        .catch(function(e) { list.innerHTML = '<div class="empty-msg">加载失败: ' + e.message + '</div>'; });
 }
 
 function renderDbEntries(panel, entries, deviceId) {
@@ -969,7 +1027,8 @@ function renderDbEntries(panel, entries, deviceId) {
             html += '<div class="config-img-placeholder">无图片</div>';
         }
         html += '</div>';
-        html += '<div class="config-key">' + e.key + '</div>';
+        var keyLink = device ? ('/qfp/?' + device.month_year + device.mac_b62 + e.key) : '';
+        html += '<div class="config-key">' + (keyLink ? '<a href="' + keyLink + '" target="_blank">' + e.key + '</a>' : e.key) + '</div>';
         html += '<div class="config-footer">';
         html += '<div class="config-state ' + stateClass + '">' + stateText + '</div>';
         html += '<button class="action-btn ' + actClass + '" onclick="handleDbAction(this,\'' + actType + '\')">' + actText + '</button>';
@@ -988,6 +1047,12 @@ function renderDbEntries(panel, entries, deviceId) {
             var sleepLow = (device.sleep_low !== null && device.sleep_low !== undefined) ? device.sleep_low : sleepNormal;
             html += '<div class="setup-panel" style="margin-top:16px" data-device-id="' + deviceId + '">';
             html += '<div class="setup-row"><span class="setup-label">注册时间</span><span class="setup-value">' + regDate + '</span></div>';
+            var cell = device.cell || '';
+            var cellAt = device.cell_at ? new Date(device.cell_at * 1000).toLocaleString('zh-CN') : '';
+            if (cell) {
+                html += '<div class="setup-row"><span class="setup-label">基站信息</span><span class="setup-value">' + cell + '</span></div>';
+                html += '<div class="setup-row"><span class="setup-label">上报时间</span><span class="setup-value">' + cellAt + '</span></div>';
+            }
             html += '<div class="setup-row"><label class="setup-label" for="db-sleep-normal-' + deviceId + '">祝福切换间隔时间</label><input class="setup-input" id="db-sleep-normal-' + deviceId + '" type="number" value="' + sleepNormal + '" min="1"><span style="font-size:12px;color:#999;margin-left:4px">正常电量(秒)</span></div>';
             html += '<div class="setup-row"><span class="setup-label"></span><input class="setup-input" id="db-sleep-low-' + deviceId + '" type="number" value="' + sleepLow + '" min="1"><span style="font-size:12px;color:#999;margin-left:4px">低电量(秒)</span></div>';
             var attimeMins  = (device.attime >= 0 && device.attime <= 1439) ? device.attime : 0;
@@ -996,6 +1061,8 @@ function renderDbEntries(panel, entries, deviceId) {
             html += '<div class="setup-row"><label class="setup-label" for="db-attime-' + deviceId + '">更新时间</label><input class="setup-input" id="db-attime-' + deviceId + '" type="time" value="' + minsToTime(attimeMins) + '"><span style="font-size:12px;color:#999;margin-left:4px">每天更新时刻</span></div>';
             html += '<div class="setup-row"><label class="setup-label" for="db-tstart-' + deviceId + '">祝福进行时间</label><input class="setup-input" id="db-tstart-' + deviceId + '" type="time" value="' + minsToTime(timeStartMins) + '"><span style="font-size:12px;color:#999;margin-left:4px">开始</span></div>';
             html += '<div class="setup-row"><span class="setup-label"></span><input class="setup-input" id="db-tend-' + deviceId + '" type="time" value="' + minsToTime(timeEndMins) + '"><span style="font-size:12px;color:#999;margin-left:4px">结束</span></div>';
+            var volumeVal = (device.volume !== null && device.volume !== undefined) ? device.volume : 5;
+            html += '<div class="setup-row"><label class="setup-label" for="db-volume-' + deviceId + '">音量</label><input class="setup-input" id="db-volume-' + deviceId + '" type="number" value="' + volumeVal + '" min="0" max="10"><span style="font-size:12px;color:#999;margin-left:4px">0-10</span></div>';
             html += '<button class="setup-save-btn" onclick="saveDbSetup(this,' + deviceId + ')">保存</button>';
             html += '</div>';
         }
@@ -1073,6 +1140,7 @@ function saveDbSetup(btn, deviceId) {
     var attimeStr  = document.getElementById('db-attime-'  + deviceId).value;
     var tstartStr  = document.getElementById('db-tstart-'  + deviceId).value;
     var tendStr    = document.getElementById('db-tend-'    + deviceId).value;
+    var volumeVal  = document.getElementById('db-volume-'  + deviceId).value;
     function timeTomins(s) { var p = (s||'0:0').split(':'); return parseInt(p[0]||0)*60+parseInt(p[1]||0); }
     var atMins     = timeTomins(attimeStr);
     var tStartMins = timeTomins(tstartStr);
@@ -1085,6 +1153,7 @@ function saveDbSetup(btn, deviceId) {
     fd.append('attime', atMins);
     fd.append('time_start', tStartMins);
     fd.append('time_end', tEndMins);
+    fd.append('volume', volumeVal);
     btn.disabled = true;
     btn.textContent = '保存中…';
     fetch(window.location.pathname, { method: 'POST', body: fd })
@@ -1099,6 +1168,7 @@ function saveDbSetup(btn, deviceId) {
                             dbDevicesCache[i].attime = atMins;
                             dbDevicesCache[i].time_start = tStartMins;
                             dbDevicesCache[i].time_end = tEndMins;
+                            dbDevicesCache[i].volume = parseInt(volumeVal);
                             break;
                         }
                     }
@@ -1122,6 +1192,7 @@ function saveDbSetup(btn, deviceId) {
 </div><!-- #dir-view -->
 
 <div id="db-view" style="display:none">
+    <div class="breadcrumb" id="db-breadcrumb" style="display:none"></div>
     <div id="db-devices-list"></div>
 </div>
 
