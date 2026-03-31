@@ -817,6 +817,49 @@ function saveSetup(btn) {
         });
 }
 
+function escapeHtml(text) {
+    return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function renderCellLocationResult(target, data) {
+    var mapUrl = 'https://uri.amap.com/marker?position=' +
+        encodeURIComponent(data.lon + ',' + data.lat) +
+        '&name=' + encodeURIComponent('设备位置');
+
+    target.innerHTML =
+        '<a href="' + mapUrl + '" target="_blank">' +
+        escapeHtml(data.lon + ', ' + data.lat) +
+        '</a>' +
+        '，误差约 ' + escapeHtml(data.radius) + ' 米' +
+        '<br>' + escapeHtml(data.address || '');
+}
+
+function loadCellLocation(cell, targetId) {
+    var target = document.getElementById(targetId);
+    if (!target) return;
+
+    var url = new URL('cell_location.php', window.location.href);
+    url.searchParams.set('cell', cell);
+
+    fetch(url.toString())
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.lat && data.lon) {
+                renderCellLocationResult(target, data);
+                return;
+            }
+            target.textContent = data.error || '定位失败';
+        })
+        .catch(function(err) {
+            target.textContent = '定位请求失败: ' + err.message;
+        });
+}
+
 // ---- 数据库视图 ----
 var dbDevicesCache = null;
 var dbEntriesCache = {};
@@ -1000,6 +1043,7 @@ function renderDbEntries(panel, entries, deviceId) {
         }
     }
     var imgBase = device ? (device.month_year + '/' + device.mac_b62 + '/') : '';
+    var pendingCellLoads = [];
 
     var html = '<div class="config-container" style="margin-top:12px;padding-bottom:4px">';
     entries.forEach(function(e) {
@@ -1052,6 +1096,8 @@ function renderDbEntries(panel, entries, deviceId) {
             if (cell) {
                 html += '<div class="setup-row"><span class="setup-label">基站信息</span><span class="setup-value">' + cell + '</span></div>';
                 html += '<div class="setup-row"><span class="setup-label">上报时间</span><span class="setup-value">' + cellAt + '</span></div>';
+                html += '<div class="setup-row"><span class="setup-label">位置信息</span><span class="setup-value" id="cell-location-' + deviceId + '">查询中...</span></div>';
+                pendingCellLoads.push({ cell: cell, targetId: 'cell-location-' + deviceId });
             }
             html += '<div class="setup-row"><label class="setup-label" for="db-sleep-normal-' + deviceId + '">祝福切换间隔时间</label><input class="setup-input" id="db-sleep-normal-' + deviceId + '" type="number" value="' + sleepNormal + '" min="1"><span style="font-size:12px;color:#999;margin-left:4px">正常电量(秒)</span></div>';
             html += '<div class="setup-row"><span class="setup-label"></span><input class="setup-input" id="db-sleep-low-' + deviceId + '" type="number" value="' + sleepLow + '" min="1"><span style="font-size:12px;color:#999;margin-left:4px">低电量(秒)</span></div>';
@@ -1068,6 +1114,9 @@ function renderDbEntries(panel, entries, deviceId) {
         }
     }
     panel.innerHTML = html;
+    pendingCellLoads.forEach(function(item) {
+        loadCellLocation(item.cell, item.targetId);
+    });
 }
 
 function handleDbAction(btn, action) {
