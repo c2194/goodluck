@@ -39,6 +39,12 @@ if (!$device) {
 	exit;
 }
 
+$now = time();
+$pdo->prepare('UPDATE devices SET getlist_count = COALESCE(getlist_count, 0) + 1, getlist_at = ? WHERE id = ?')
+	->execute([$now, $device['id']]);
+$device['getlist_count'] = intval($device['getlist_count'] ?? 0) + 1;
+$device['getlist_at'] = $now;
+
 // 记录基站定位信息 (cell=MNC,MCC,LAC,CellID,Signal)
 if (isset($extraParams['cell']) && $extraParams['cell'] !== '') {
 	$cell = $extraParams['cell'];

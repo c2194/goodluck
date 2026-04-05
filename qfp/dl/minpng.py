@@ -65,8 +65,16 @@ def minimize_tricolor_png(input_path: Path, output_path: Path) -> None:
         # Step 2: rotate 90° counter-clockwise → 400x300
         src = src.transpose(Image.Transpose.ROTATE_90)
 
+        # Step 2.5: enhance contrast to sharpen text before quantization
+        from PIL import ImageEnhance
+        src = ImageEnhance.Contrast(src).enhance(1.5)
+
         w, h = src.size
-        pix = src.load()
+
+        # Floyd-Steinberg dithering on float buffer for smooth text edges
+        import numpy as np
+        buf = np.array(src, dtype=np.float64)  # shape: (h, w, 3)
+        pal = np.array(PALETTE_COLORS, dtype=np.float64)
 
         # Create paletted image
         out = Image.new("P", (w, h))
@@ -81,11 +89,31 @@ def minimize_tricolor_png(input_path: Path, output_path: Path) -> None:
 
         out_pix = out.load()
 
-        # Quantize each pixel to nearest palette color
+        # Quantize with Floyd-Steinberg error diffusion
         for y in range(h):
             for x in range(w):
-                r, g, b = pix[x, y]
-                out_pix[x, y] = nearest_palette_index(r, g, b)
+                old_r, old_g, old_b = buf[y, x]
+                # Clamp to 0-255
+                old_r = max(0.0, min(255.0, old_r))
+                old_g = max(0.0, min(255.0, old_g))
+                old_b = max(0.0, min(255.0, old_b))
+                # Find nearest palette color
+                idx = nearest_palette_index(int(old_r + 0.5), int(old_g + 0.5), int(old_b + 0.5))
+                out_pix[x, y] = idx
+                # Compute quantization error
+                new_r, new_g, new_b = pal[idx]
+                err_r = old_r - new_r
+                err_g = old_g - new_g
+                err_b = old_b - new_b
+                # Distribute error to neighbors
+                if x + 1 < w:
+                    buf[y, x + 1] += [err_r * 7/16, err_g * 7/16, err_b * 7/16]
+                if y + 1 < h:
+                    if x - 1 >= 0:
+                        buf[y + 1, x - 1] += [err_r * 3/16, err_g * 3/16, err_b * 3/16]
+                    buf[y + 1, x] += [err_r * 5/16, err_g * 5/16, err_b * 5/16]
+                    if x + 1 < w:
+                        buf[y + 1, x + 1] += [err_r * 1/16, err_g * 1/16, err_b * 1/16]
 
         # Save with maximum optimization
         out.save(output_path, format="PNG", optimize=True)

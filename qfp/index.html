@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>图片手势预览（3:4 框）</title>
+  <title>13图片手势预览（3:4 框）12</title>
   <!-- 字体会通过 JS 动态加载，只加载需要的文字 -->
   <script src="tricolor.js"></script>
   <style>
@@ -601,6 +601,14 @@
         <img src="img/p3.png" alt="自定义一" />
         <div class="tile-label">自定义一</div>
       </div>
+      <div class="tile" id="tileP4">
+        <img src="template/p2/p2.png" alt="吉祥6字" />
+        <div class="tile-label">吉祥 6 字</div>
+      </div>
+      <a class="tile" id="tileP5" href="template/p3/index.html" style="text-decoration:none;color:inherit;">
+        <img src="template/p3/p3.png" alt="灵语双列楷" />
+        <div class="tile-label">灵语双列楷</div>
+      </a>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
       <label class="tricolor-mode-label"><input type="checkbox" id="chkTricolorInitial"> 三色图</label>
@@ -1469,21 +1477,35 @@
     });
 
     // 瓷片点击：直接加载对应预设图片
-    ['tileP1', 'tileP2', 'tileP3'].forEach((id, idx) => {
+    [
+      { id: 'tileP1', src: 'img/p1.png', name: 'p1.png' },
+      { id: 'tileP2', src: 'img/p2.png', name: 'p2.png' },
+      { id: 'tileP3', src: 'img/p3.png', name: 'p3.png' },
+      { id: 'tileP4', src: 'template/p2/p2.png', name: 'template_p2.png' }
+    ].forEach(({ id, src, name }) => {
       const tile = document.getElementById(id);
       if (!tile) return;
       tile.addEventListener('click', async () => {
-        const src = `img/p${idx + 1}.png`;
         isTricolorMode = chkTricolorInitial.checked;
         initialPicker.classList.add('hidden');
         mainContent.classList.add('show');
         // 通过 fetch 转为 File 对象
         const res = await fetch(src);
         const blob = await res.blob();
-        const file = new File([blob], `p${idx + 1}.png`, { type: blob.type || 'image/png' });
+        const file = new File([blob], name, { type: blob.type || 'image/png' });
         setImageFromFile(file);
       });
     });
+
+    // tileP5: 透传 URL 参数到模板页
+    (() => {
+      const tileP5 = document.getElementById('tileP5');
+      if (!tileP5) return;
+      const search = window.location.search || '';
+      if (search) {
+        tileP5.href = 'template/p3/index.html' + search;
+      }
+    })();
 
     btnPick.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', () => {

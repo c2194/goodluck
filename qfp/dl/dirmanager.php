@@ -996,6 +996,7 @@ function renderDbDevicesForMonth() {
         html += '<div class="dir-item" onclick="dbNavTo(\'entries\',\'' + my + '\',' + d.id + ')">';
         html += '<div><span class="dir-name">' + d.mac_b62 + '</span>';
         if (regDate) html += '<div class="dir-meta">注册: ' + regDate + '</div>';
+        html += '<div class="dir-meta">请求次数: ' + (parseInt(d.getlist_count || 0, 10) || 0) + '</div>';
         html += '</div>';
         html += '</div>';
     });
@@ -1087,10 +1088,16 @@ function renderDbEntries(panel, entries, deviceId) {
         }
         if (device) {
             var regDate = new Date(device.registered_at * 1000).toLocaleDateString('zh-CN');
+            var getlistAt = device.getlist_at ? new Date(device.getlist_at * 1000).toLocaleString('zh-CN') : '';
+            var getlistCount = parseInt(device.getlist_count || 0, 10) || 0;
             var sleepNormal = (device.sleep !== null && device.sleep !== undefined) ? device.sleep : 15;
             var sleepLow = (device.sleep_low !== null && device.sleep_low !== undefined) ? device.sleep_low : sleepNormal;
             html += '<div class="setup-panel" style="margin-top:16px" data-device-id="' + deviceId + '">';
             html += '<div class="setup-row"><span class="setup-label">注册时间</span><span class="setup-value">' + regDate + '</span></div>';
+            html += '<div class="setup-row"><span class="setup-label">请求次数</span><span class="setup-value">' + getlistCount + '</span></div>';
+            if (getlistAt) {
+                html += '<div class="setup-row"><span class="setup-label">最后请求</span><span class="setup-value">' + getlistAt + '</span></div>';
+            }
             var cell = device.cell || '';
             var cellAt = device.cell_at ? new Date(device.cell_at * 1000).toLocaleString('zh-CN') : '';
             if (cell) {

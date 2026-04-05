@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>祝福牌 · 灵语双列楷</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121826;
+      --text: #e6edf3;
+      --muted: #9aa4b2;
+      --border: rgba(255,255,255,0.10);
+      --btn: #1f6feb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      padding: 12px;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    .frame-hint {
+      text-align: center;
+      color: #94a3b8;
+      font-size: 13px;
+      margin-top: 10px;
+    }
+
+    .frame {
+      margin-top: 6px;
+      width: 100%;
+      aspect-ratio: 270 / 400;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      position: relative;
+      user-select: none;
+    }
+    .frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* 文字叠层 */
+    .text-layer {
+      position: absolute;
+      z-index: 10;
+      font-size: 28px;
+      line-height: 1.3;
+      white-space: pre-wrap;
+      word-break: break-word;
+      pointer-events: none;
+      display: none;
+      padding: 2px 4px;
+    }
+
+    /* 输入组 */
+    .field-card {
+      margin-top: 14px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .field-card .field-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .field-card .field-title .limit {
+      font-size: 11px;
+      color: #555;
+      font-weight: 400;
+      margin-left: 4px;
+    }
+    .field-card input[type="text"],
+    .field-card input[type="date"],
+    .field-card select {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 16px;
+      line-height: 1.3;
+      outline: none;
+    }
+    .field-card input:focus,
+    .field-card select:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .field-card input::placeholder {
+      color: #555;
+    }
+
+    .settings-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .settings-row select {
+      flex: 1;
+      min-width: 100px;
+    }
+    .settings-row input[type="number"] {
+      width: 68px;
+      flex: none;
+    }
+    .settings-row .spacing-label {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+      align-self: center;
+    }
+
+    .dir-row {
+      display: flex;
+      gap: 6px;
+    }
+    .dir-row button {
+      flex: 1;
+      padding: 8px 0;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .dir-row button.active {
+      border-color: var(--btn);
+    }
+
+    .color-row {
+      display: flex;
+      gap: 6px;
+    }
+    .color-row button {
+      flex: 1;
+      padding: 8px 0;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      cursor: pointer;
+    }
+    .color-row button.active {
+      border-color: var(--btn);
+    }
+    .color-btn-black { background: #111; color: #fff; }
+    .color-btn-red   { background: #d1242f; color: #fff; }
+    .color-btn-white  { background: #fff; color: #111; }
+
+    button.preview-btn {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-weight: 600;
+      font-size: 14px;
+      background: var(--btn);
+      color: white;
+      cursor: pointer;
+      align-self: flex-start;
+    }
+    .btn-loading {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .field-status {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .url-param {
+      color: #666;
+      font-size: 13px;
+      line-height: 1.2;
+      word-break: break-all;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    /* 加载遮罩 */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: none;
+      place-items: center;
+      z-index: 999;
+      padding: 16px;
+    }
+    .overlay.show {
+      display: grid;
+    }
+    .overlay-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      width: min(90vw, 360px);
+      color: var(--text);
+      text-align: center;
+    }
+    .overlay-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .overlay-bar {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .overlay-bar > span {
+      display: block;
+      height: 100%;
+      width: 45%;
+      background: var(--btn);
+      border-radius: inherit;
+      animation: loadingBar 1.2s ease-in-out infinite;
+    }
+    @keyframes loadingBar {
+      0% { transform: translateX(-100%); }
+      50% { transform: translateX(80%); }
+      100% { transform: translateX(220%); }
+    }
+    .overlay-hint {
+      font-size: 12px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="urlParam" class="url-param"></div>
+    <div class="frame-hint">预览</div>
+    <div class="frame" id="frame">
+      <div id="layer_to" class="text-layer" style="left:12px;top:12px;color:#111111;"></div>
+      <div id="layer_msg" class="text-layer" style="left:12px;top:60px;color:#d1242f;"></div>
+      <div id="layer_from" class="text-layer" style="right:12px;bottom:50px;color:#111111;text-align:right;"></div>
+      <div id="layer_date" class="text-layer" style="right:12px;bottom:12px;color:#111111;text-align:right;"></div>
+      <img id="preview" src="p31.png" alt="模板预览" />
+    </div>
+
+    <!-- 祝福给 -->
+    <div class="field-card" data-layer="layer_to">
+      <div class="field-title">祝福给 <span class="limit">（≤5字）</span></div>
+      <input type="text" class="field-input" maxlength="5" placeholder="收件人名字" />
+      <div class="settings-row">
+        <select class="field-font">
+          <option value="default">默认字体</option>
+          <option value="AlimamaDaoLiTi">刀隶体</option>
+          <option value="AlimamaDongFangDaKai" selected>东方大楷</option>
+          <option value="AlimamaShuHeiTi">数黑体</option>
+          <option value="DingTalkJinBuTi">进步体</option>
+          <option value="TaoBaoMaiCaiTi">买菜体</option>
+        </select>
+        <input type="number" class="field-size" value="28" min="12" max="60" step="2" />          <span class="spacing-label">间距</span>
+          <input type="number" class="field-spacing" value="0" min="-5" max="30" step="1" />      </div>
+      <div class="color-row">
+        <button type="button" class="color-btn-black active" data-color="#111111">黑</button>
+        <button type="button" class="color-btn-red" data-color="#d1242f">红</button>
+        <button type="button" class="color-btn-white" data-color="#ffffff">白</button>
+      </div>
+      <div class="dir-row">
+        <button type="button" class="active" data-dir="h">横排</button>
+        <button type="button" data-dir="v">竖排</button>
+      </div>
+      <button type="button" class="preview-btn">预览</button>
+      <div class="field-status"></div>
+    </div>
+
+    <!-- 祝福语 -->
+    <div class="field-card" data-layer="layer_msg">
+      <div class="field-title">祝福语 <span class="limit">（≤15字）</span></div>
+      <input type="text" class="field-input" maxlength="15" placeholder="写一句祝福语" />
+      <div class="settings-row">
+        <select class="field-font">
+          <option value="default">默认字体</option>
+          <option value="AlimamaDaoLiTi">刀隶体</option>
+          <option value="AlimamaDongFangDaKai" selected>东方大楷</option>
+          <option value="AlimamaShuHeiTi">数黑体</option>
+          <option value="DingTalkJinBuTi">进步体</option>
+          <option value="TaoBaoMaiCaiTi">买菜体</option>
+        </select>
+        <input type="number" class="field-size" value="32" min="12" max="60" step="2" />          <span class="spacing-label">间距</span>
+          <input type="number" class="field-spacing" value="0" min="-5" max="30" step="1" />      </div>
+      <div class="color-row">
+        <button type="button" class="color-btn-black" data-color="#111111">黑</button>
+        <button type="button" class="color-btn-red active" data-color="#d1242f">红</button>
+        <button type="button" class="color-btn-white" data-color="#ffffff">白</button>
+      </div>
+      <div class="dir-row">
+        <button type="button" class="active" data-dir="h">横排</button>
+        <button type="button" data-dir="v">竖排</button>
+      </div>
+      <button type="button" class="preview-btn">预览</button>
+      <div class="field-status"></div>
+    </div>
+
+    <!-- 送祝福人 -->
+    <div class="field-card" data-layer="layer_from">
+      <div class="field-title">送祝福人 <span class="limit">（≤5字）</span></div>
+      <input type="text" class="field-input" maxlength="5" placeholder="你的名字" />
+      <div class="settings-row">
+        <select class="field-font">
+          <option value="default">默认字体</option>
+          <option value="AlimamaDaoLiTi">刀隶体</option>
+          <option value="AlimamaDongFangDaKai" selected>东方大楷</option>
+          <option value="AlimamaShuHeiTi">数黑体</option>
+          <option value="DingTalkJinBuTi">进步体</option>
+          <option value="TaoBaoMaiCaiTi">买菜体</option>
+        </select>
+        <input type="number" class="field-size" value="24" min="12" max="60" step="2" />          <span class="spacing-label">间距</span>
+          <input type="number" class="field-spacing" value="0" min="-5" max="30" step="1" />      </div>
+      <div class="color-row">
+        <button type="button" class="color-btn-black active" data-color="#111111">黑</button>
+        <button type="button" class="color-btn-red" data-color="#d1242f">红</button>
+        <button type="button" class="color-btn-white" data-color="#ffffff">白</button>
+      </div>
+      <div class="dir-row">
+        <button type="button" class="active" data-dir="h">横排</button>
+        <button type="button" data-dir="v">竖排</button>
+      </div>
+      <button type="button" class="preview-btn">预览</button>
+      <div class="field-status"></div>
+    </div>
+
+    <!-- 时间 -->
+    <div class="field-card" data-layer="layer_date">
+      <div class="field-title">时间</div>
+      <input type="date" class="field-input" />
+      <div class="settings-row">
+        <select class="field-font">
+          <option value="default" selected>默认字体</option>
+          <option value="AlimamaDaoLiTi">刀隶体</option>
+          <option value="AlimamaDongFangDaKai">东方大楷</option>
+          <option value="AlimamaShuHeiTi">数黑体</option>
+          <option value="DingTalkJinBuTi">进步体</option>
+          <option value="TaoBaoMaiCaiTi">买菜体</option>
+        </select>
+        <input type="number" class="field-size" value="20" min="12" max="60" step="2" />          <span class="spacing-label">间距</span>
+          <input type="number" class="field-spacing" value="0" min="-5" max="30" step="1" />      </div>
+      <div class="color-row">
+        <button type="button" class="color-btn-black active" data-color="#111111">黑</button>
+        <button type="button" class="color-btn-red" data-color="#d1242f">红</button>
+        <button type="button" class="color-btn-white" data-color="#ffffff">白</button>
+      </div>
+      <div class="dir-row">
+        <button type="button" class="active" data-dir="h">横排</button>
+        <button type="button" data-dir="v">竖排</button>
+      </div>
+      <button type="button" class="preview-btn">预览</button>
+      <div class="field-status"></div>
+    </div>
+  </div>
+
+  <!-- 加载遮罩 -->
+  <div id="loadingOverlay" class="overlay" role="dialog" aria-live="polite">
+    <div class="overlay-card">
+      <div class="overlay-title">正在加载字体</div>
+      <div class="overlay-bar"><span></span></div>
+      <div class="overlay-hint">请稍后…</div>
+    </div>
+  </div>
+
+  <script>
+    const FONT_API = 'https://www.twobaozi.com/qfp/font/dfont.php';
+    const loadingOverlay = document.getElementById('loadingOverlay');
+
+    // 已加载的字体缓存：fontName -> familyName
+    const loadedFonts = {};
+
+    // 透传 URL 参数
+    const rawQuery = window.location.search || '';
+    const urlParamEl = document.getElementById('urlParam');
+    if (rawQuery) {
+      const text = decodeURIComponent(rawQuery.startsWith('?') ? rawQuery.slice(1) : rawQuery);
+      urlParamEl.textContent = text;
+      urlParamEl.style.display = 'block';
+    } else {
+      urlParamEl.style.display = 'none';
+    }
+
+    // 默认日期为今天
+    const dateInput = document.querySelector('.field-card[data-layer="layer_date"] .field-input');
+    if (dateInput) {
+      const d = new Date();
+      dateInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    // 统一处理每个 field-card
+    document.querySelectorAll('.field-card').forEach(card => {
+      const layerId = card.dataset.layer;
+      const layer = document.getElementById(layerId);
+      const input = card.querySelector('.field-input');
+      const fontSelect = card.querySelector('.field-font');
+      const sizeInput = card.querySelector('.field-size');
+      const spacingInput = card.querySelector('.field-spacing');
+      const previewBtn = card.querySelector('.preview-btn');
+      const statusEl = card.querySelector('.field-status');
+      let currentColor = card.querySelector('.color-row button.active')?.dataset.color || '#111111';
+      let currentDir = 'h';
+
+      // 横排/竖排切换
+      card.querySelectorAll('.dir-row button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          card.querySelectorAll('.dir-row button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentDir = btn.dataset.dir;
+          if (layer.style.display !== 'none') {
+            layer.style.writingMode = currentDir === 'v' ? 'vertical-rl' : 'horizontal-tb';
+          }
+        });
+      });
+
+      // 颜色切换
+      card.querySelectorAll('.color-row button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          card.querySelectorAll('.color-row button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentColor = btn.dataset.color;
+          layer.style.color = currentColor;
+        });
+      });
+
+      // 字号实时更新
+      sizeInput.addEventListener('input', () => {
+        if (layer.style.display !== 'none') {
+          layer.style.fontSize = (parseInt(sizeInput.value) || 28) + 'px';
+        }
+      });
+
+      // 字间距实时更新
+      spacingInput.addEventListener('input', () => {
+        if (layer.style.display !== 'none') {
+          layer.style.letterSpacing = (parseInt(spacingInput.value) || 0) + 'px';
+        }
+      });
+
+      // 应用文字到图层
+      function applyText(family) {
+        const text = input.value.trim();
+        if (!text) {
+          layer.style.display = 'none';
+          return;
+        }
+        layer.style.display = 'block';
+        layer.textContent = text;
+        layer.style.fontFamily = family;
+        layer.style.fontSize = (parseInt(sizeInput.value) || 28) + 'px';
+        layer.style.color = currentColor;
+        layer.style.letterSpacing = (parseInt(spacingInput.value) || 0) + 'px';
+        layer.style.writingMode = currentDir === 'v' ? 'vertical-rl' : 'horizontal-tb';
+      }
+
+      // 预览按钮
+      previewBtn.addEventListener('click', async () => {
+        const text = input.value.trim();
+        if (!text) {
+          statusEl.textContent = '请填写内容';
+          statusEl.style.color = '#f85149';
+          return;
+        }
+        statusEl.textContent = '';
+        document.activeElement?.blur();
+
+        const fontName = fontSelect.value;
+
+        if (fontName === 'default') {
+          applyText('sans-serif');
+          return;
+        }
+
+        // 检查缓存
+        if (loadedFonts[fontName]) {
+          applyText(loadedFonts[fontName]);
+          return;
+        }
+
+        // 远程加载
+        previewBtn.disabled = true;
+        previewBtn.classList.add('btn-loading');
+        loadingOverlay.classList.add('show');
+
+        try {
+          const uniqueChars = [...new Set(text.replace(/\s/g, ''))].join('');
+          const url = `${FONT_API}?font=${encodeURIComponent(fontName)}&text=${encodeURIComponent(uniqueChars)}`;
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error('字体加载失败: ' + resp.status);
+
+          const data = await resp.arrayBuffer();
+          const family = `CustomFont_${fontName}`;
+          const face = new FontFace(family, data, { style: 'normal', weight: 'normal' });
+          await face.load();
+          document.fonts.add(face);
+          loadedFonts[fontName] = family;
+
+          applyText(family);
+        } catch (err) {
+          console.error(err);
+          statusEl.textContent = '✖ ' + err.message;
+          statusEl.style.color = '#f85149';
+        } finally {
+          previewBtn.disabled = false;
+          previewBtn.classList.remove('btn-loading');
+          loadingOverlay.classList.remove('show');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

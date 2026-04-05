@@ -97,6 +97,14 @@ try {
 	}
 	$createdFiles[] = $imagePath;
 
+	// 备份原始图片
+	$backupPath = $macDir . DIRECTORY_SEPARATOR . $key . $newState . '_raw.png';
+	if (!copy($imagePath, $backupPath)) {
+		error_log('备份原始图片失败: ' . $backupPath);
+	} else {
+		$createdFiles[] = $backupPath;
+	}
+
 	// 调用 minpng.py 压缩图片
 	$imgStatus = '图片压缩成功';
 	$minpngScript = __DIR__ . DIRECTORY_SEPARATOR . 'minpng.py';
