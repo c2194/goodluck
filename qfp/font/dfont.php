@@ -46,6 +46,41 @@ $fonts = [
         'file' => 'TaoBaoMaiCaiTi-Regular.woff2',
         'type' => 'woff2',
         'name' => '淘宝买菜体'
+    ],
+    'SotyrFangsong-Regular' => [
+        'file' => 'SotyrFangsong-Regular.woff2',
+        'type' => 'woff2',
+        'name' => '长宋体'
+    ],
+    'bfs' => [
+        'file' => 'bfs.woff2',
+        'type' => 'woff2',
+        'name' => '美仿宋'
+    ],
+    'MasaFont-Bold' => [
+        'file' => 'MasaFont-Bold.woff2',
+        'type' => 'woff2',
+        'name' => '衡山毛笔'
+    ],
+    'bzt' => [
+        'file' => 'bzt.woff2',
+        'type' => 'woff2',
+        'name' => '碑筆体'
+    ],
+    'sys' => [
+        'file' => 'sys.woff2',
+        'type' => 'woff2',
+        'name' => '思源宋'
+    ],
+    'syh' => [
+        'file' => 'syh.woff2',
+        'type' => 'woff2',
+        'name' => '思源黑'
+    ],
+    'sxt' => [
+        'file' => 'sxt.woff2',
+        'type' => 'woff2',
+        'name' => '手写体'
     ]
 ];
 
@@ -155,11 +190,12 @@ exec($cmd, $output, $returnCode);
 // 清理临时文本文件
 unlink($textFile);
 
-if ($returnCode !== 0 || !file_exists($outputPath)) {
+if ($returnCode !== 0 || !file_exists($outputPath) || filesize($outputPath) < 100) {
     // 子集化失败，返回完整字体
     header('X-Subset-Status: failed');
     header('X-Subset-Error: ' . implode(' ', $output));
     if (file_exists($outputFile)) unlink($outputFile);
+    if (file_exists($outputPath)) unlink($outputPath);
     outputFont($fontFile, $fontInfo['type']);
     exit;
 }

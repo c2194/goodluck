@@ -1,0 +1,1025 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>祝福牌 · 灵语双列楷</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121826;
+      --text: #e6edf3;
+      --muted: #9aa4b2;
+      --border: rgba(255,255,255,0.10);
+      --btn: #1f6feb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      padding: 12px;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    .frame-hint {
+      text-align: center;
+      color: #94a3b8;
+      font-size: 13px;
+      margin-top: 10px;
+    }
+
+    .frame {
+      margin-top: 6px;
+      width: 100%;
+      aspect-ratio: 270 / 400;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      position: relative;
+      user-select: none;
+    }
+    .frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* 文字叠层 */
+    .text-layer {
+      position: absolute;
+      z-index: 10;
+      font-size: 28px;
+      line-height: 1.3;
+      white-space: pre-wrap;
+      word-break: break-word;
+      pointer-events: none;
+      display: none;
+      padding: 0;
+      border: 1px dashed rgba(59,130,246,0.7);
+      overflow: hidden;
+      /* flex 居中 */
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      paint-order: stroke fill;
+    }
+
+    /* 输入组 */
+    .field-card {
+      margin-top: 14px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .field-card .field-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .field-card .field-title .limit {
+      font-size: 11px;
+      color: #555;
+      font-weight: 400;
+      margin-left: 4px;
+    }
+    .field-card input[type="text"],
+    .field-card input[type="date"],
+    .field-card select {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 16px;
+      line-height: 1.3;
+      outline: none;
+    }
+    .field-card input:focus,
+    .field-card select:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .field-card input::placeholder {
+      color: #555;
+    }
+
+    .settings-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .settings-row select {
+      flex: 1;
+      min-width: 100px;
+    }
+    .settings-row input[type="number"] {
+      width: 68px;
+      flex: none;
+    }
+    .settings-row .spacing-label {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+      align-self: center;
+    }
+
+    .xywh-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .xywh-row label {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .xywh-row input[type="number"] {
+      width: 58px;
+      flex: none;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 6px 8px;
+      font-size: 14px;
+      outline: none;
+    }
+    .xywh-row input:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+
+    .align-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .align-row label {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .align-row select {
+      flex: 1;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 6px 8px;
+      font-size: 13px;
+      outline: none;
+    }
+    .align-row select:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+
+    .dir-row {
+      display: flex;
+      gap: 6px;
+    }
+    .dir-row button {
+      flex: 1;
+      padding: 8px 0;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .dir-row button.active {
+      border-color: var(--btn);
+    }
+
+    .rotate-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .rotate-row label {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .rotate-row input[type="number"] {
+      width: 72px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 6px 8px;
+      font-size: 14px;
+      outline: none;
+    }
+    .rotate-row input:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .rotate-row span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .stroke-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .stroke-row label {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .stroke-row input[type="number"] {
+      width: 62px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 6px 8px;
+      font-size: 14px;
+      outline: none;
+    }
+    .stroke-row input[type="color"] {
+      width: 36px;
+      height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      cursor: pointer;
+      padding: 2px;
+    }
+    .stroke-row input:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .stroke-row span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .radius-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .radius-row label {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .radius-row input {
+      width: 60px;
+      height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 13px;
+    }
+    .radius-row input:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .radius-row span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .color-row {
+      display: flex;
+      gap: 6px;
+    }
+    .color-row button {
+      flex: 1;
+      padding: 8px 0;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      cursor: pointer;
+    }
+    .color-row button.active {
+      border-color: var(--btn);
+    }
+    .color-btn-black { background: #111; color: #fff; }
+    .color-btn-red   { background: #d1242f; color: #fff; }
+    .color-btn-white  { background: #fff; color: #111; }
+
+    .bgc-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .bgc-row .bgc-label {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .bgc-row button {
+      flex: 1;
+      padding: 8px 0;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      cursor: pointer;
+    }
+    .bgc-row button.active {
+      border-color: var(--btn);
+    }
+    .bgc-btn-none  { background: linear-gradient(135deg,#eee 40%,#ccc 60%); color: #666; }
+    .bgc-btn-black { background: #111; color: #fff; }
+    .bgc-btn-red   { background: #d1242f; color: #fff; }
+    .bgc-btn-white { background: #fff; color: #111; }
+
+    button.preview-btn {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-weight: 600;
+      font-size: 14px;
+      background: var(--btn);
+      color: white;
+      cursor: pointer;
+      align-self: flex-start;
+    }
+    .btn-loading {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .field-status {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .url-param {
+      color: #666;
+      font-size: 13px;
+      line-height: 1.2;
+      word-break: break-all;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    /* 加载遮罩 */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: none;
+      place-items: center;
+      z-index: 999;
+      padding: 16px;
+    }
+    .overlay.show {
+      display: grid;
+    }
+    .overlay-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      width: min(90vw, 360px);
+      color: var(--text);
+      text-align: center;
+    }
+    .overlay-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .overlay-bar {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .overlay-bar > span {
+      display: block;
+      height: 100%;
+      width: 45%;
+      background: var(--btn);
+      border-radius: inherit;
+      animation: loadingBar 1.2s ease-in-out infinite;
+    }
+    @keyframes loadingBar {
+      0% { transform: translateX(-100%); }
+      50% { transform: translateX(80%); }
+      100% { transform: translateX(220%); }
+    }
+    .overlay-hint {
+      font-size: 12px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="urlParam" class="url-param"></div>
+    <div class="frame-hint">预览</div>
+    <div class="frame" id="frame">
+      <div id="layer_to" class="text-layer"></div>
+      <div id="layer_msg" class="text-layer"></div>
+      <div id="layer_from" class="text-layer"></div>
+      <div id="layer_date" class="text-layer"></div>
+      <img id="preview" src="p31.png" alt="模板预览" />
+    </div>
+
+    <!-- 祝福给 -->
+    <div class="field-card" data-layer="layer_to" data-x="10" data-y="10" data-w="250" data-h="50">
+      <div class="field-title">祝福给 <span class="limit">（≤5字）</span></div>
+      <input type="text" class="field-input" maxlength="5" placeholder="收件人名字" />
+      <div class="xywh-row">
+        <label>X</label><input type="number" class="field-x" value="10" min="0" max="270" step="1" />
+        <label>Y</label><input type="number" class="field-y" value="10" min="0" max="400" step="1" />
+        <label>W</label><input type="number" class="field-w" value="250" min="10" max="270" step="1" />
+        <label>H</label><input type="number" class="field-h" value="50" min="10" max="400" step="1" />
+      </div>
+      <div class="align-row">
+        <label>横轴</label>
+        <select class="field-align-h">
+          <option value="flex-start">左</option>
+          <option value="center" selected>居中</option>
+          <option value="flex-end">右</option>
+        </select>
+        <label>纵轴</label>
+        <select class="field-align-v">
+          <option value="flex-start">上</option>
+          <option value="center" selected>居中</option>
+          <option value="flex-end">下</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <select class="field-font">
+          <option value="default">默认字体</option>
+          <option value="AlimamaDaoLiTi">刀隶体</option>
+          <option value="AlimamaDongFangDaKai" selected>东方大楷</option>
+          <option value="AlimamaShuHeiTi">数黑体</option>
+          <option value="DingTalkJinBuTi">进步体</option>
+          <option value="TaoBaoMaiCaiTi">买菜体</option>
+        </select>
+        <input type="number" class="field-size" value="28" min="12" max="60" step="2" />          <span class="spacing-label">字距</span>
+          <input type="number" class="field-spacing" value="0" min="-5" max="30" step="1" />          <span class="spacing-label">行距</span>
+          <input type="number" class="field-line-spacing" value="1.3" min="0.5" max="5" step="0.1" />      </div>
+      <div class="color-row">
+        <button type="button" class="color-btn-black active" data-color="#111111">黑</button>
+        <button type="button" class="color-btn-red" data-color="#d1242f">红</button>
+        <button type="button" class="color-btn-white" data-color="#ffffff">白</button>
+      </div>
+      <div class="bgc-row">
+        <span class="bgc-label">背景</span>
+        <button type="button" class="bgc-btn-none active" data-bgc="transparent">无</button>
+        <button type="button" class="bgc-btn-black" data-bgc="#111111">黑</button>
+        <button type="button" class="bgc-btn-red" data-bgc="#d1242f">红</button>
+        <button type="button" class="bgc-btn-white" data-bgc="#ffffff">白</button>
+      </div>
+      <div class="dir-row">
+        <button type="button" class="active" data-dir="h">横排</button>
+        <button type="button" data-dir="v">竖排</button>
+      </div>
+      <div class="rotate-row">
+        <label>旋转</label><input type="number" class="field-rotate" value="0" min="-180" max="180" step="1" /><span>°</span>
+      </div>
+      <div class="stroke-row">
+        <label>描边</label><input type="number" class="field-stroke-w" value="0" min="0" max="10" step="0.5" /><span>px</span>
+        <input type="color" class="field-stroke-c" value="#000000" title="描边颜色" />
+      </div>
+      <div class="radius-row">
+        <label>圆角</label><input type="number" class="field-radius" value="0" min="0" max="100" step="1" /><span>px</span>
+      </div>
+      <button type="button" class="preview-btn">预览</button>
+      <div class="field-status"></div>
+    </div>
+
+    <!-- 祝福语 -->
+    <div class="field-card" data-layer="layer_msg" data-x="10" data-y="80" data-w="250" data-h="200">
+      <div class="field-title">祝福语 <span class="limit">（≤15字）</span></div>
+      <input type="text" class="field-input" maxlength="15" placeholder="写一句祝福语" />
+      <div class="xywh-row">
+        <label>X</label><input type="number" class="field-x" value="10" min="0" max="270" step="1" />
+        <label>Y</label><input type="number" class="field-y" value="80" min="0" max="400" step="1" />
+        <label>W</label><input type="number" class="field-w" value="250" min="10" max="270" step="1" />
+        <label>H</label><input type="number" class="field-h" value="200" min="10" max="400" step="1" />
+      </div>
+      <div class="align-row">
+        <label>横轴</label>
+        <select class="field-align-h">
+          <option value="flex-start">左</option>
+          <option value="center" selected>居中</option>
+          <option value="flex-end">右</option>
+        </select>
+        <label>纵轴</label>
+        <select class="field-align-v">
+          <option value="flex-start">上</option>
+          <option value="center" selected>居中</option>
+          <option value="flex-end">下</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <select class="field-font">
+          <option value="default">默认字体</option>
+          <option value="AlimamaDaoLiTi">刀隶体</option>
+          <option value="AlimamaDongFangDaKai" selected>东方大楷</option>
+          <option value="AlimamaShuHeiTi">数黑体</option>
+          <option value="DingTalkJinBuTi">进步体</option>
+          <option value="TaoBaoMaiCaiTi">买菜体</option>
+        </select>
+        <input type="number" class="field-size" value="32" min="12" max="60" step="2" />          <span class="spacing-label">字距</span>
+          <input type="number" class="field-spacing" value="0" min="-5" max="30" step="1" />          <span class="spacing-label">行距</span>
+          <input type="number" class="field-line-spacing" value="1.3" min="0.5" max="5" step="0.1" />      </div>
+      <div class="color-row">
+        <button type="button" class="color-btn-black" data-color="#111111">黑</button>
+        <button type="button" class="color-btn-red active" data-color="#d1242f">红</button>
+        <button type="button" class="color-btn-white" data-color="#ffffff">白</button>
+      </div>
+      <div class="bgc-row">
+        <span class="bgc-label">背景</span>
+        <button type="button" class="bgc-btn-none active" data-bgc="transparent">无</button>
+        <button type="button" class="bgc-btn-black" data-bgc="#111111">黑</button>
+        <button type="button" class="bgc-btn-red" data-bgc="#d1242f">红</button>
+        <button type="button" class="bgc-btn-white" data-bgc="#ffffff">白</button>
+      </div>
+      <div class="dir-row">
+        <button type="button" class="active" data-dir="h">横排</button>
+        <button type="button" data-dir="v">竖排</button>
+      </div>
+      <div class="rotate-row">
+        <label>旋转</label><input type="number" class="field-rotate" value="0" min="-180" max="180" step="1" /><span>°</span>
+      </div>
+      <div class="stroke-row">
+        <label>描边</label><input type="number" class="field-stroke-w" value="0" min="0" max="10" step="0.5" /><span>px</span>
+        <input type="color" class="field-stroke-c" value="#000000" title="描边颜色" />
+      </div>
+      <div class="radius-row">
+        <label>圆角</label><input type="number" class="field-radius" value="0" min="0" max="100" step="1" /><span>px</span>
+      </div>
+      <button type="button" class="preview-btn">预览</button>
+      <div class="field-status"></div>
+    </div>
+
+    <!-- 送祝福人 -->
+    <div class="field-card" data-layer="layer_from" data-x="100" data-y="310" data-w="160" data-h="40">
+      <div class="field-title">送祝福人 <span class="limit">（≤5字）</span></div>
+      <input type="text" class="field-input" maxlength="5" placeholder="你的名字" />
+      <div class="xywh-row">
+        <label>X</label><input type="number" class="field-x" value="100" min="0" max="270" step="1" />
+        <label>Y</label><input type="number" class="field-y" value="310" min="0" max="400" step="1" />
+        <label>W</label><input type="number" class="field-w" value="160" min="10" max="270" step="1" />
+        <label>H</label><input type="number" class="field-h" value="40" min="10" max="400" step="1" />
+      </div>
+      <div class="align-row">
+        <label>横轴</label>
+        <select class="field-align-h">
+          <option value="flex-start">左</option>
+          <option value="center" selected>居中</option>
+          <option value="flex-end">右</option>
+        </select>
+        <label>纵轴</label>
+        <select class="field-align-v">
+          <option value="flex-start">上</option>
+          <option value="center" selected>居中</option>
+          <option value="flex-end">下</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <select class="field-font">
+          <option value="default">默认字体</option>
+          <option value="AlimamaDaoLiTi">刀隶体</option>
+          <option value="AlimamaDongFangDaKai" selected>东方大楷</option>
+          <option value="AlimamaShuHeiTi">数黑体</option>
+          <option value="DingTalkJinBuTi">进步体</option>
+          <option value="TaoBaoMaiCaiTi">买菜体</option>
+        </select>
+        <input type="number" class="field-size" value="24" min="12" max="60" step="2" />          <span class="spacing-label">字距</span>
+          <input type="number" class="field-spacing" value="0" min="-5" max="30" step="1" />          <span class="spacing-label">行距</span>
+          <input type="number" class="field-line-spacing" value="1.3" min="0.5" max="5" step="0.1" />      </div>
+      <div class="color-row">
+        <button type="button" class="color-btn-black active" data-color="#111111">黑</button>
+        <button type="button" class="color-btn-red" data-color="#d1242f">红</button>
+        <button type="button" class="color-btn-white" data-color="#ffffff">白</button>
+      </div>
+      <div class="bgc-row">
+        <span class="bgc-label">背景</span>
+        <button type="button" class="bgc-btn-none active" data-bgc="transparent">无</button>
+        <button type="button" class="bgc-btn-black" data-bgc="#111111">黑</button>
+        <button type="button" class="bgc-btn-red" data-bgc="#d1242f">红</button>
+        <button type="button" class="bgc-btn-white" data-bgc="#ffffff">白</button>
+      </div>
+      <div class="dir-row">
+        <button type="button" class="active" data-dir="h">横排</button>
+        <button type="button" data-dir="v">竖排</button>
+      </div>
+      <div class="rotate-row">
+        <label>旋转</label><input type="number" class="field-rotate" value="0" min="-180" max="180" step="1" /><span>°</span>
+      </div>
+      <div class="stroke-row">
+        <label>描边</label><input type="number" class="field-stroke-w" value="0" min="0" max="10" step="0.5" /><span>px</span>
+        <input type="color" class="field-stroke-c" value="#000000" title="描边颜色" />
+      </div>
+      <div class="radius-row">
+        <label>圆角</label><input type="number" class="field-radius" value="0" min="0" max="100" step="1" /><span>px</span>
+      </div>
+      <button type="button" class="preview-btn">预览</button>
+      <div class="field-status"></div>
+    </div>
+
+    <!-- 时间 -->
+    <div class="field-card" data-layer="layer_date" data-x="100" data-y="360" data-w="160" data-h="30">
+      <div class="field-title">时间</div>
+      <input type="date" class="field-input" />
+      <select class="field-date-fmt">
+        <option value="cn_full">二六年十一月二十九日</option>
+        <option value="cn_ym">二六·十一月</option>
+        <option value="gz">辛丑年·子月</option>
+        <option value="num_full" selected>26年11月28日</option>
+        <option value="num_ym">26年11月</option>
+        <option value="dash_full">26·11·28</option>
+        <option value="dash_ym">26·11</option>
+      </select>
+      <div class="xywh-row">
+        <label>X</label><input type="number" class="field-x" value="100" min="0" max="270" step="1" />
+        <label>Y</label><input type="number" class="field-y" value="360" min="0" max="400" step="1" />
+        <label>W</label><input type="number" class="field-w" value="160" min="10" max="270" step="1" />
+        <label>H</label><input type="number" class="field-h" value="30" min="10" max="400" step="1" />
+      </div>
+      <div class="align-row">
+        <label>横轴</label>
+        <select class="field-align-h">
+          <option value="flex-start">左</option>
+          <option value="center" selected>居中</option>
+          <option value="flex-end">右</option>
+        </select>
+        <label>纵轴</label>
+        <select class="field-align-v">
+          <option value="flex-start">上</option>
+          <option value="center" selected>居中</option>
+          <option value="flex-end">下</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <select class="field-font">
+          <option value="default" selected>默认字体</option>
+          <option value="AlimamaDaoLiTi">刀隶体</option>
+          <option value="AlimamaDongFangDaKai">东方大楷</option>
+          <option value="AlimamaShuHeiTi">数黑体</option>
+          <option value="DingTalkJinBuTi">进步体</option>
+          <option value="TaoBaoMaiCaiTi">买菜体</option>
+        </select>
+        <input type="number" class="field-size" value="20" min="12" max="60" step="2" />          <span class="spacing-label">字距</span>
+          <input type="number" class="field-spacing" value="0" min="-5" max="30" step="1" />          <span class="spacing-label">行距</span>
+          <input type="number" class="field-line-spacing" value="1.3" min="0.5" max="5" step="0.1" />      </div>
+      <div class="color-row">
+        <button type="button" class="color-btn-black active" data-color="#111111">黑</button>
+        <button type="button" class="color-btn-red" data-color="#d1242f">红</button>
+        <button type="button" class="color-btn-white" data-color="#ffffff">白</button>
+      </div>
+      <div class="bgc-row">
+        <span class="bgc-label">背景</span>
+        <button type="button" class="bgc-btn-none active" data-bgc="transparent">无</button>
+        <button type="button" class="bgc-btn-black" data-bgc="#111111">黑</button>
+        <button type="button" class="bgc-btn-red" data-bgc="#d1242f">红</button>
+        <button type="button" class="bgc-btn-white" data-bgc="#ffffff">白</button>
+      </div>
+      <div class="dir-row">
+        <button type="button" class="active" data-dir="h">横排</button>
+        <button type="button" data-dir="v">竖排</button>
+      </div>
+      <div class="rotate-row">
+        <label>旋转</label><input type="number" class="field-rotate" value="0" min="-180" max="180" step="1" /><span>°</span>
+      </div>
+      <div class="stroke-row">
+        <label>描边</label><input type="number" class="field-stroke-w" value="0" min="0" max="10" step="0.5" /><span>px</span>
+        <input type="color" class="field-stroke-c" value="#000000" title="描边颜色" />
+      </div>
+      <div class="radius-row">
+        <label>圆角</label><input type="number" class="field-radius" value="0" min="0" max="100" step="1" /><span>px</span>
+      </div>
+      <button type="button" class="preview-btn">预览</button>
+      <div class="field-status"></div>
+    </div>
+  </div>
+
+  <!-- 加载遮罩 -->
+  <div id="loadingOverlay" class="overlay" role="dialog" aria-live="polite">
+    <div class="overlay-card">
+      <div class="overlay-title">正在加载字体</div>
+      <div class="overlay-bar"><span></span></div>
+      <div class="overlay-hint">请稍后…</div>
+    </div>
+  </div>
+
+  <script>
+    const FONT_API = 'https://www.twobaozi.com/qfp/font/dfont.php';
+    const loadingOverlay = document.getElementById('loadingOverlay');
+
+    // 已加载的字体缓存：fontName -> familyName
+    const loadedFonts = {};
+
+    // 透传 URL 参数
+    const rawQuery = window.location.search || '';
+    const urlParamEl = document.getElementById('urlParam');
+    if (rawQuery) {
+      const text = decodeURIComponent(rawQuery.startsWith('?') ? rawQuery.slice(1) : rawQuery);
+      urlParamEl.textContent = text;
+      urlParamEl.style.display = 'block';
+    } else {
+      urlParamEl.style.display = 'none';
+    }
+
+    // 日期格式化工具
+    const CN_DIGITS = ['零','一','二','三','四','五','六','七','八','九'];
+    function numToCn(n) {
+      return String(n).split('').map(c => CN_DIGITS[parseInt(c)]).join('');
+    }
+    function monthToCn(m) {
+      if (m <= 10) return CN_DIGITS[m];
+      if (m === 11) return '十一';
+      return '十二';
+    }
+    function dayToCn(d) {
+      if (d <= 10) return CN_DIGITS[d];
+      if (d < 20) return '十' + CN_DIGITS[d - 10];
+      if (d === 20) return '二十';
+      if (d < 30) return '二十' + CN_DIGITS[d - 20];
+      if (d === 30) return '三十';
+      return '三十' + CN_DIGITS[d - 30];
+    }
+    const TIAN_GAN = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+    const DI_ZHI   = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+    const DZ_MONTH = ['寅','卯','辰','巳','午','未','申','酉','戌','亥','子','丑'];
+    function yearToGanZhi(y) {
+      return TIAN_GAN[(y - 4) % 10] + DI_ZHI[(y - 4) % 12];
+    }
+    function monthToGanZhi(m) {
+      return DZ_MONTH[m - 1] + '月';
+    }
+    function formatDate(dateStr, fmt) {
+      if (!dateStr) return '';
+      const [fy, fm, fd] = dateStr.split('-').map(Number);
+      const y2 = fy % 100;
+      switch (fmt) {
+        case 'cn_full': return numToCn(y2) + '年' + monthToCn(fm) + '月' + dayToCn(fd) + '日';
+        case 'cn_ym':   return numToCn(y2) + '·' + monthToCn(fm) + '月';
+        case 'gz':      return yearToGanZhi(fy) + '年·' + monthToGanZhi(fm);
+        case 'num_full': return y2 + '年' + String(fm).padStart(2,'0') + '月' + String(fd).padStart(2,'0') + '日';
+        case 'num_ym':  return y2 + '年' + String(fm).padStart(2,'0') + '月';
+        case 'dash_full': return y2 + '·' + String(fm).padStart(2,'0') + '·' + String(fd).padStart(2,'0');
+        case 'dash_ym': return y2 + '·' + String(fm).padStart(2,'0');
+        default: return dateStr;
+      }
+    }
+
+    // 默认日期为今天
+    const dateInput = document.querySelector('.field-card[data-layer="layer_date"] .field-input');
+    if (dateInput) {
+      const d = new Date();
+      dateInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    // 统一处理每个 field-card
+    document.querySelectorAll('.field-card').forEach(card => {
+      const layerId = card.dataset.layer;
+      const layer = document.getElementById(layerId);
+      const input = card.querySelector('.field-input');
+      const dateFmtSelect = card.querySelector('.field-date-fmt');
+      const fontSelect = card.querySelector('.field-font');
+      const sizeInput = card.querySelector('.field-size');
+      const spacingInput = card.querySelector('.field-spacing');
+      const lineSpacingInput = card.querySelector('.field-line-spacing');
+      const xInput = card.querySelector('.field-x');
+      const yInput = card.querySelector('.field-y');
+      const wInput = card.querySelector('.field-w');
+      const hInput = card.querySelector('.field-h');
+      const alignHSelect = card.querySelector('.field-align-h');
+      const alignVSelect = card.querySelector('.field-align-v');
+      const rotateInput = card.querySelector('.field-rotate');
+      const strokeWInput = card.querySelector('.field-stroke-w');
+      const strokeCInput = card.querySelector('.field-stroke-c');
+      const radiusInput = card.querySelector('.field-radius');
+      const previewBtn = card.querySelector('.preview-btn');
+      const statusEl = card.querySelector('.field-status');
+      let currentColor = card.querySelector('.color-row button.active')?.dataset.color || '#111111';
+      let currentDir = 'h';
+
+      // 获取显示文本（日期卡片会格式化）
+      function getDisplayText() {
+        const raw = input.value.trim();
+        if (!raw) return '';
+        if (dateFmtSelect) return formatDate(raw, dateFmtSelect.value);
+        return raw;
+      }
+
+      // 日期格式切换时实时更新
+      if (dateFmtSelect) {
+        dateFmtSelect.addEventListener('change', () => {
+          if (layer.style.display !== 'none') {
+            layer.textContent = getDisplayText();
+          }
+        });
+      }
+
+      // 将 270x400 坐标转为百分比定位
+      function applyPosition() {
+        const x = parseInt(xInput.value) || 0;
+        const y = parseInt(yInput.value) || 0;
+        const w = parseInt(wInput.value) || 100;
+        const h = parseInt(hInput.value) || 50;
+        layer.style.left = (x / 270 * 100) + '%';
+        layer.style.top = (y / 400 * 100) + '%';
+        layer.style.width = (w / 270 * 100) + '%';
+        layer.style.height = (h / 400 * 100) + '%';
+      }
+
+      // xywh 实时更新
+      [xInput, yInput, wInput, hInput].forEach(el => {
+        el.addEventListener('input', () => {
+          if (layer.style.display !== 'none') applyPosition();
+        });
+      });
+
+      // 对齐方式实时更新
+      function applyAlign() {
+        layer.style.justifyContent = alignHSelect.value;
+        layer.style.alignItems = alignVSelect.value;
+        layer.style.textAlign = alignHSelect.value === 'flex-start' ? 'left' : alignHSelect.value === 'flex-end' ? 'right' : 'center';
+      }
+      alignHSelect.addEventListener('change', () => {
+        if (layer.style.display !== 'none') applyAlign();
+      });
+      alignVSelect.addEventListener('change', () => {
+        if (layer.style.display !== 'none') applyAlign();
+      });
+
+      // 横排/竖排切换
+      card.querySelectorAll('.dir-row button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          card.querySelectorAll('.dir-row button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentDir = btn.dataset.dir;
+          if (layer.style.display !== 'none') {
+            layer.style.writingMode = currentDir === 'v' ? 'vertical-rl' : 'horizontal-tb';
+          }
+        });
+      });
+
+      // 颜色切换
+      card.querySelectorAll('.color-row button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          card.querySelectorAll('.color-row button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentColor = btn.dataset.color;
+          layer.style.color = currentColor;
+        });
+      });
+
+      // 背景颜色切换
+      card.querySelectorAll('.bgc-row button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          card.querySelectorAll('.bgc-row button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          layer.style.backgroundColor = btn.dataset.bgc;
+        });
+      });
+
+      // 字号实时更新
+      sizeInput.addEventListener('input', () => {
+        if (layer.style.display !== 'none') {
+          layer.style.fontSize = (parseInt(sizeInput.value) || 28) + 'px';
+        }
+      });
+
+      // 字间距实时更新
+      spacingInput.addEventListener('input', () => {
+        if (layer.style.display !== 'none') {
+          layer.style.letterSpacing = (parseInt(spacingInput.value) || 0) + 'px';
+        }
+      });
+
+      // 行间距实时更新
+      lineSpacingInput.addEventListener('input', () => {
+        if (layer.style.display !== 'none') {
+          layer.style.lineHeight = parseFloat(lineSpacingInput.value) || 1.3;
+        }
+      });
+
+      // 旋转角度实时更新
+      rotateInput.addEventListener('input', () => {
+        if (layer.style.display !== 'none') {
+          layer.style.transform = `rotate(${parseInt(rotateInput.value) || 0}deg)`;
+        }
+      });
+
+      // 描边实时更新
+      function applyStroke() {
+        const sw = parseFloat(strokeWInput.value) || 0;
+        const sc = strokeCInput.value;
+        layer.style.webkitTextStroke = sw > 0 ? `${sw}px ${sc}` : '';
+      }
+      strokeWInput.addEventListener('input', () => {
+        if (layer.style.display !== 'none') applyStroke();
+      });
+      strokeCInput.addEventListener('input', () => {
+        if (layer.style.display !== 'none') applyStroke();
+      });
+
+      // 圆角实时更新
+      radiusInput.addEventListener('input', () => {
+        if (layer.style.display !== 'none') {
+          layer.style.borderRadius = (parseInt(radiusInput.value) || 0) + 'px';
+        }
+      });
+
+      // 应用文字到图层
+      function applyText(family) {
+        const text = getDisplayText();
+        if (!text) {
+          layer.style.display = 'none';
+          return;
+        }
+        layer.style.display = 'flex';
+        layer.textContent = text;
+        layer.style.fontFamily = family;
+        layer.style.fontSize = (parseInt(sizeInput.value) || 28) + 'px';
+        layer.style.color = currentColor;
+        layer.style.letterSpacing = (parseInt(spacingInput.value) || 0) + 'px';
+        layer.style.lineHeight = parseFloat(lineSpacingInput.value) || 1.3;
+        layer.style.writingMode = currentDir === 'v' ? 'vertical-rl' : 'horizontal-tb';
+        applyPosition();
+        applyAlign();
+        layer.style.transform = `rotate(${parseInt(rotateInput.value) || 0}deg)`;
+        applyStroke();
+      }
+
+      // 预览按钮
+      previewBtn.addEventListener('click', async () => {
+        const text = getDisplayText();
+        if (!text) {
+          statusEl.textContent = '请填写内容';
+          statusEl.style.color = '#f85149';
+          return;
+        }
+        statusEl.textContent = '';
+        document.activeElement?.blur();
+
+        const fontName = fontSelect.value;
+
+        if (fontName === 'default') {
+          applyText('sans-serif');
+          return;
+        }
+
+        // 检查缓存
+        if (loadedFonts[fontName]) {
+          applyText(loadedFonts[fontName]);
+          return;
+        }
+
+        // 远程加载
+        previewBtn.disabled = true;
+        previewBtn.classList.add('btn-loading');
+        loadingOverlay.classList.add('show');
+
+        try {
+          const uniqueChars = [...new Set(text.replace(/\s/g, ''))].join('');
+          const url = `${FONT_API}?font=${encodeURIComponent(fontName)}&text=${encodeURIComponent(uniqueChars)}`;
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error('字体加载失败: ' + resp.status);
+
+          const data = await resp.arrayBuffer();
+          const family = `CustomFont_${fontName}`;
+          const face = new FontFace(family, data, { style: 'normal', weight: 'normal' });
+          await face.load();
+          document.fonts.add(face);
+          loadedFonts[fontName] = family;
+
+          applyText(family);
+        } catch (err) {
+          console.error(err);
+          statusEl.textContent = '✖ ' + err.message;
+          statusEl.style.color = '#f85149';
+        } finally {
+          previewBtn.disabled = false;
+          previewBtn.classList.remove('btn-loading');
+          loadingOverlay.classList.remove('show');
+        }
+      });
+    });
+  </script>
+</body>
+</html>
