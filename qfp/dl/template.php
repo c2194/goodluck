@@ -24,6 +24,8 @@ $pdo->exec('
 try { $pdo->exec("ALTER TABLE templates ADD COLUMN config TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $_) {}
 // 迁移：补充 tpl_name 列（模板编辑器里设置的展示名）
 try { $pdo->exec("ALTER TABLE templates ADD COLUMN tpl_name TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $_) {}
+// 迁移：补充 thumb_img 列（发布时合成的缩略图）
+try { $pdo->exec("ALTER TABLE templates ADD COLUMN thumb_img TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $_) {}
 
 $messages  = [];
 $errors    = [];
@@ -31,6 +33,44 @@ $activeModal = '';
 
 function h(string $v): string {
     return htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
+}
+
+// ── AJAX GET: 列出已发布模板 ────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'list') {
+    header('Content-Type: application/json; charset=utf-8');
+    $rows = $pdo->query("SELECT id, name, tpl_name, bg_img, top_img, thumb_img FROM templates WHERE config != '' ORDER BY created_at ASC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $result = [];
+    foreach ($rows as $r) {
+        $label = trim((string)($r['tpl_name'] ?? '')) ?: trim((string)($r['name'] ?? ''));
+        $thumb = trim((string)($r['thumb_img'] ?? ''));
+        if ($thumb === '') $thumb = trim((string)($r['bg_img'] ?? ''));
+        $result[] = [
+            'id'    => (int)$r['id'],
+            'name'  => $label,
+            'thumb' => $thumb,
+            'bg'    => (string)($r['bg_img'] ?? ''),
+            'top'   => (string)($r['top_img'] ?? ''),
+        ];
+    }
+    echo json_encode($result);
+    exit;
+}
+
+// ── AJAX GET: 读取模板配置 ────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'get_config') {
+    header('Content-Type: application/json; charset=utf-8');
+    $templateId = (int) ($_GET['template_id'] ?? 0);
+    if ($templateId <= 0) {
+        echo json_encode(['ok' => false, 'error' => '参数错误']); exit;
+    }
+    $stmt = $pdo->prepare('SELECT config, tpl_name FROM templates WHERE id = ?');
+    $stmt->execute([$templateId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        echo json_encode(['ok' => false, 'error' => '模板不存在']); exit;
+    }
+    echo json_encode(['ok' => true, 'config' => $row['config'], 'tpl_name' => $row['tpl_name'] ?? '']);
+    exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -117,6 +157,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // ── AJAX: 删除模板 ──────────────────────────────────────────
+    if ($action === 'delete_template') {
+        header('Content-Type: application/json; charset=utf-8');
+        $templateId = (int) ($_POST['template_id'] ?? 0);
+        if ($templateId <= 0) {
+            echo json_encode(['ok' => false, 'error' => '参数错误']); exit;
+        }
+        $chk = $pdo->prepare('SELECT id FROM templates WHERE id = ?');
+        $chk->execute([$templateId]);
+        if (!$chk->fetch()) {
+            echo json_encode(['ok' => false, 'error' => '模板不存在']); exit;
+        }
+        // 删除模板文件目录
+        $dir = __DIR__ . '/template/' . $templateId;
+        if (is_dir($dir)) {
+            $files = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST
+            );
+            foreach ($files as $f) {
+                $f->isDir() ? rmdir($f->getPathname()) : unlink($f->getPathname());
+            }
+            rmdir($dir);
+        }
+        // 删除数据库记录
+        $del = $pdo->prepare('DELETE FROM templates WHERE id = ?');
+        $del->execute([$templateId]);
+        echo json_encode(['ok' => true]);
+        exit;
+    }
+
     // ── AJAX: 保存模板配置 ────────────────────────────────────────
     if ($action === 'save_config') {
         header('Content-Type: application/json; charset=utf-8');
@@ -126,8 +197,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($templateId <= 0) {
             echo json_encode(['ok' => false, 'error' => '参数错误']); exit;
         }
-        $upd = $pdo->prepare('UPDATE templates SET config = ?, tpl_name = ? WHERE id = ?');
-        $upd->execute([$config, $tplName, $templateId]);
+        // 可选：保存合成缩略图
+        $thumbRel  = '';
+        $thumbFile = $_FILES['thumb'] ?? null;
+        if ($thumbFile && (int) $thumbFile['error'] === UPLOAD_ERR_OK) {
+            $dir = __DIR__ . '/template/' . $templateId . '/';
+            if (!is_dir($dir)) @mkdir($dir, 0750, true);
+            if (move_uploaded_file($thumbFile['tmp_name'], $dir . 'thumb.png')) {
+                $thumbRel = 'template/' . $templateId . '/thumb.png';
+            }
+        }
+        if ($thumbRel !== '') {
+            $upd = $pdo->prepare('UPDATE templates SET config = ?, tpl_name = ?, thumb_img = ? WHERE id = ?');
+            $upd->execute([$config, $tplName, $thumbRel, $templateId]);
+        } else {
+            $upd = $pdo->prepare('UPDATE templates SET config = ?, tpl_name = ? WHERE id = ?');
+            $upd->execute([$config, $tplName, $templateId]);
+        }
         echo json_encode(['ok' => true]);
         exit;
     }
@@ -182,6 +268,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $types = $pdo->query('SELECT * FROM template_types ORDER BY created_at DESC, id DESC')->fetchAll();
+
+$allTemplates = $pdo->query('SELECT * FROM templates ORDER BY created_at ASC, id ASC')->fetchAll();
+$tplByType = [];
+foreach ($allTemplates as $tpl) {
+    $tplByType[(int) $tpl['type_id']][] = $tpl;
+}
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -279,17 +371,60 @@ $types = $pdo->query('SELECT * FROM template_types ORDER BY created_at DESC, id 
         .list { display: grid; gap: 12px; }
         .type-item {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 14px;
+            flex-direction: column;
+            gap: 0;
             padding: 16px 20px;
             border: 1px solid #e3ebf7;
             border-radius: 16px;
             background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(246,249,255,0.92));
         }
+        .type-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+        }
         .type-name { font-size: 16px; font-weight: 700; }
         .type-meta { font-size: 12px; color: #8898b2; margin-top: 4px; }
         .type-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+        /* 模板缩略图网格 */
+        .tpl-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid #e8eef8;
+        }
+        .tpl-card {
+            width: 72px;
+            text-decoration: none;
+            color: inherit;
+            border: 1px solid #e3ebf7;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #f9fbff;
+            transition: box-shadow .15s, transform .15s;
+            position: relative;
+        }
+        .tpl-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(44,87,181,.14); border-color: #a5c0f3; }
+        .tpl-card:hover .tpl-del { opacity: 1; }
+        .tpl-del {
+            position: absolute; top: 2px; left: 2px;
+            width: 18px; height: 18px; border-radius: 50%;
+            background: rgba(220,38,38,.82); color: #fff;
+            font-size: 12px; line-height: 18px; text-align: center;
+            cursor: pointer; border: none; padding: 0;
+            opacity: 0; transition: opacity .15s;
+            z-index: 2;
+        }
+        .tpl-del:hover { background: #dc2626; }
+        .tpl-card.published { border-color: #bcd0f7; }
+        .tpl-thumb { width: 100%; aspect-ratio: 270/400; object-fit: cover; display: block; }
+        .tpl-thumb-ph { width: 100%; aspect-ratio: 270/400; background: #e8eef8; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #8898b2; }
+        .tpl-name { font-size: 11px; color: #26446f; padding: 4px 5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tpl-badge { position: absolute; top: 3px; right: 3px; background: #3068ff; color: #fff; font-size: 9px; padding: 1px 4px; border-radius: 4px; line-height: 1.6; }
 
         .empty {
             padding: 30px;
@@ -412,18 +547,48 @@ $types = $pdo->query('SELECT * FROM template_types ORDER BY created_at DESC, id 
         <?php else: ?>
             <div class="list">
                 <?php foreach ($types as $type): ?>
+                    <?php $typeTpls = $tplByType[(int) $type['id']] ?? []; ?>
                     <div class="type-item">
-                        <div>
-                            <div class="type-name"><?= h($type['name']); ?></div>
-                            <div class="type-meta">创建时间：<?= h(date('Y-m-d H:i', (int) $type['created_at'])); ?></div>
+                        <div class="type-item-header">
+                            <div>
+                                <div class="type-name"><?= h($type['name']); ?></div>
+                                <div class="type-meta">创建时间：<?= h(date('Y-m-d H:i', (int) $type['created_at'])); ?>　共 <?= count($typeTpls); ?> 个模板</div>
+                            </div>
+                            <div class="type-actions">
+                                <button class="btn btn-ghost btn-sm"
+                                        type="button"
+                                        data-open-modal="rename-type-<?= (int) $type['id']; ?>">修改</button>
+                                <button class="btn btn-primary btn-sm" type="button"
+                                        onclick="openNewTemplate(<?= (int) $type['id']; ?>, '<?= h($type['name']); ?>')">创建</button>
+                            </div>
                         </div>
-                        <div class="type-actions">
-                            <button class="btn btn-ghost btn-sm"
-                                    type="button"
-                                    data-open-modal="rename-type-<?= (int) $type['id']; ?>">修改</button>
-                            <button class="btn btn-primary btn-sm" type="button"
-                                    onclick="openNewTemplate(<?= (int) $type['id']; ?>, '<?= h($type['name']); ?>')">创建</button>
+                        <?php if ($typeTpls): ?>
+                        <div class="tpl-grid">
+                            <?php foreach ($typeTpls as $tpl): ?>
+                                <?php
+                                    $tplLink = 'template/create.html?template_id=' . (int)$tpl['id']
+                                        . '&bg='  . urlencode((string)($tpl['bg_img']  ?? ''))
+                                        . '&top=' . urlencode((string)($tpl['top_img'] ?? ''));
+                                    $tplLabel = trim((string)($tpl['tpl_name'] ?? '')) ?: trim((string)($tpl['name'] ?? ''));
+                                    $isPublished = trim((string)($tpl['config'] ?? '')) !== '';
+                                ?>
+                                <a class="tpl-card<?= $isPublished ? ' published' : ''; ?>" href="<?= h($tplLink); ?>" title="<?= h($tplLabel); ?>">
+                                    <button class="tpl-del" type="button" onclick="deleteTemplate(event, <?= (int)$tpl['id']; ?>, '<?= h(addslashes($tplLabel)); ?>')" title="删除">&times;</button>
+                                    <?php
+                                        $thumbSrc = trim((string)($tpl['thumb_img'] ?? ''));
+                                        if ($thumbSrc === '') $thumbSrc = trim((string)($tpl['bg_img'] ?? ''));
+                                    ?>
+                                    <?php if ($thumbSrc !== ''): ?>
+                                        <img class="tpl-thumb" src="<?= h($thumbSrc); ?>?t=<?= (int)$tpl['created_at']; ?>" alt="">
+                                    <?php else: ?>
+                                        <div class="tpl-thumb-ph">无图</div>
+                                    <?php endif; ?>
+                                    <div class="tpl-name"><?= h($tplLabel); ?></div>
+                                    <?php if ($isPublished): ?><span class="tpl-badge">已发布</span><?php endif; ?>
+                                </a>
+                            <?php endforeach; ?>
                         </div>
+                        <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -679,6 +844,24 @@ async function doUpload(imgType) {
 ['bg', 'top'].forEach(t => {
     document.getElementById('up-file-' + t).addEventListener('change', () => doUpload(t));
 });
+
+// ── 删除模板 ─────────────────────────────────────────────────────
+async function deleteTemplate(e, templateId, name) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm('确定删除模板「' + name + '」？此操作不可撤销。')) return;
+    const fd = new FormData();
+    fd.append('action', 'delete_template');
+    fd.append('template_id', templateId);
+    try {
+        const res  = await fetch('', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!data.ok) { alert(data.error || '删除失败'); return; }
+        location.reload();
+    } catch {
+        alert('网络错误，请重试');
+    }
+}
 </script>
 </body>
 </html>

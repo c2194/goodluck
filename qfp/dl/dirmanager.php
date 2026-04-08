@@ -493,6 +493,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'setup' && isset($_POST['pat
 <div class="tab-bar">
     <button id="tab-dir" class="tab-btn tab-active" onclick="switchTab('dir')">📁 目录视图</button>
     <button id="tab-db"  class="tab-btn"            onclick="switchTab('db')">🗄 数据库视图</button>
+    <button class="tab-btn" onclick="location.href='template.php'">🖼 模板编辑</button>
 </div>
 
 <div id="dir-view">

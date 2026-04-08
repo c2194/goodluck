@@ -588,28 +588,7 @@
   <!-- 初始居中选择按钮 -->
   <div id="initialPicker" class="initial-picker">
     <div id="urlParamInitial" class="url-param"></div>
-    <div class="tile-grid">
-      <div class="tile" id="tileP1">
-        <img src="img/p1.png" alt="竖板八字" />
-        <div class="tile-label">竖板八字</div>
-      </div>
-      <div class="tile" id="tileP2">
-        <img src="img/p2.png" alt="横十六字" />
-        <div class="tile-label">横十六字</div>
-      </div>
-      <div class="tile" id="tileP3">
-        <img src="img/p3.png" alt="自定义一" />
-        <div class="tile-label">自定义一</div>
-      </div>
-      <div class="tile" id="tileP4">
-        <img src="template/p2/p2.png" alt="吉祥6字" />
-        <div class="tile-label">吉祥 6 字</div>
-      </div>
-      <a class="tile" id="tileP5" href="template/p3/index.html" style="text-decoration:none;color:inherit;">
-        <img src="template/p3/p3.png" alt="灵语双列楷" />
-        <div class="tile-label">灵语双列楷</div>
-      </a>
-    </div>
+    <div class="tile-grid" id="tileGrid"></div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
       <label class="tricolor-mode-label"><input type="checkbox" id="chkTricolorInitial"> 三色图</label>
       <button id="btnPickInitial">选择图片</button>
@@ -1476,34 +1455,37 @@
       }
     });
 
-    // 瓷片点击：直接加载对应预设图片
-    [
-      { id: 'tileP1', src: 'img/p1.png', name: 'p1.png' },
-      { id: 'tileP2', src: 'img/p2.png', name: 'p2.png' },
-      { id: 'tileP3', src: 'img/p3.png', name: 'p3.png' },
-      { id: 'tileP4', src: 'template/p2/p2.png', name: 'template_p2.png' }
-    ].forEach(({ id, src, name }) => {
-      const tile = document.getElementById(id);
-      if (!tile) return;
-      tile.addEventListener('click', async () => {
-        isTricolorMode = chkTricolorInitial.checked;
-        initialPicker.classList.add('hidden');
-        mainContent.classList.add('show');
-        // 通过 fetch 转为 File 对象
-        const res = await fetch(src);
-        const blob = await res.blob();
-        const file = new File([blob], name, { type: blob.type || 'image/png' });
-        setImageFromFile(file);
-      });
-    });
-
-    // tileP5: 透传 URL 参数到模板页
-    (() => {
-      const tileP5 = document.getElementById('tileP5');
-      if (!tileP5) return;
+    // 动态加载模板列表
+    (async () => {
+      const grid = document.getElementById('tileGrid');
       const search = window.location.search || '';
-      if (search) {
-        tileP5.href = 'template/p3/index.html' + search;
+      try {
+        const res = await fetch('dl/template.php?action=list');
+        const list = await res.json();
+        list.forEach(tpl => {
+          const a = document.createElement('a');
+          a.className = 'tile';
+          a.style.textDecoration = 'none';
+          a.style.color = 'inherit';
+          const params = new URLSearchParams({
+            template_id: tpl.id,
+            bg: tpl.bg,
+            top: tpl.top
+          });
+          a.href = 'dl/template/create.html?' + params.toString() + (search ? '&' + search.slice(1) : '');
+          const img = document.createElement('img');
+          img.src = tpl.thumb ? ('dl/' + tpl.thumb) : '';
+          img.alt = tpl.name;
+          img.onerror = function() { this.style.display = 'none'; };
+          const label = document.createElement('div');
+          label.className = 'tile-label';
+          label.textContent = tpl.name;
+          a.appendChild(img);
+          a.appendChild(label);
+          grid.appendChild(a);
+        });
+      } catch (e) {
+        console.warn('加载模板列表失败:', e);
       }
     })();
 

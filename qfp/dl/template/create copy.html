@@ -869,118 +869,134 @@
       });
     })();
 
-    // ── Canvas 自绘缩略图（仿 index.html captureFrame 方案）───────
-    // 核心思路：直接从 DOM 读取 layer 的 computedStyle / boundingRect，
-    // 不做任何手动坐标换算——浏览器怎么排版就怎么画。
-    async function buildThumbCanvas() {
-      function _rrect(ctx, x, y, w, h, r) {
-        r = Math.min(r, w / 2, h / 2);
-        ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.arcTo(x + w, y,     x + w, y + h, r);
-        ctx.arcTo(x + w, y + h, x,     y + h, r);
-        ctx.arcTo(x,     y + h, x,     y,     r);
-        ctx.arcTo(x,     y,     x + w, y,     r);
-        ctx.closePath();
+    // ── Canvas 自绘缩略图（精确还原预览效果）────────────────────────
+    function _rrect(ctx, x, y, w, h, r) {
+      r = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y,     x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x,     y + h, r);
+      ctx.arcTo(x,     y + h, x,     y,     r);
+      ctx.arcTo(x,     y,     x + w, y,     r);
+      ctx.closePath();
+    }
+    function _mLine(ctx, text, sp) {
+      if (!sp || !text) return ctx.measureText(text).width;
+      const cs = [...text];
+      return cs.reduce((s, c) => s + ctx.measureText(c).width, 0) + sp * (cs.length - 1);
+    }
+    function _wrapH(ctx, text, maxW, sp) {
+      const lines = [];
+      for (const para of text.split('\n')) {
+        if (!para) { lines.push(''); continue; }
+        let cur = '';
+        for (const ch of [...para]) {
+          const test = cur + ch;
+          if (_mLine(ctx, test, sp) > maxW && cur) { lines.push(cur); cur = ch; }
+          else cur = test;
+        }
+        if (cur) lines.push(cur);
       }
-      const frame = document.getElementById('frame');
-      const bgImg = document.getElementById('preview');
-      // 以 <img> 的实际渲染区域为基准，避免 frame border 导致的偏移
-      const imgR = bgImg.getBoundingClientRect();
-      const FW = imgR.width;
-      const FH = imgR.height;
-      const SCALE = 2;
-
+      return lines.length ? lines : [''];
+    }
+    function _dLine(ctx, text, x, y, sp, color, sw, sc) {
+      if (sw > 0) {
+        ctx.save();
+        ctx.strokeStyle = sc; ctx.lineWidth = sw * 2; ctx.lineJoin = 'round';
+        if (sp) { let cx = x; for (const c of [...text]) { ctx.strokeText(c, cx, y); cx += ctx.measureText(c).width + sp; } }
+        else ctx.strokeText(text, x, y);
+        ctx.restore();
+      }
+      ctx.fillStyle = color;
+      if (sp) { let cx = x; for (const c of [...text]) { ctx.fillText(c, cx, y); cx += ctx.measureText(c).width + sp; } }
+      else ctx.fillText(text, x, y);
+    }
+    function _drawH(ctx, text, x, y, w, h, fs, lh, sp, aH, aV, color, sw, sc) {
+      const step = fs * lh;
+      const lines = _wrapH(ctx, text, w, sp);
+      const totH = (lines.length - 1) * step + fs;
+      let sy = aV === 'flex-start' ? y : aV === 'flex-end' ? y + h - totH : y + (h - totH) / 2;
+      ctx.textBaseline = 'top';
+      lines.forEach((line, i) => {
+        if (!line) return;
+        const lw = _mLine(ctx, line, sp);
+        const lx = aH === 'flex-start' ? x : aH === 'flex-end' ? x + w - lw : x + (w - lw) / 2;
+        _dLine(ctx, line, lx, sy + i * step, sp, color, sw, sc);
+      });
+    }
+    function _drawV(ctx, text, x, y, w, h, fs, lh, sp, aH, aV, color, sw, sc) {
+      const step = fs * lh;
+      const chars = [...text];
+      const maxPer = Math.max(1, Math.floor((h + step - fs) / step));
+      const cols = [];
+      for (let i = 0; i < chars.length; i += maxPer) cols.push(chars.slice(i, i + maxPer));
+      const totW = cols.length * fs + Math.max(0, cols.length - 1) * sp;
+      let sx = aH === 'flex-start' ? x : aH === 'flex-end' ? x + w - totW : x + (w - totW) / 2;
+      ctx.textBaseline = 'top';
+      cols.forEach((col, ci) => {
+        const cx = sx + ci * (fs + sp);
+        const colH = (col.length - 1) * step + fs;
+        let sy2 = aV === 'flex-start' ? y : aV === 'flex-end' ? y + h - colH : y + (h - colH) / 2;
+        col.forEach((ch, ri) => _dLine(ctx, ch, cx, sy2 + ri * step, 0, color, sw, sc));
+      });
+    }
+    async function buildThumbCanvas() {
+      const SCALE = 2, W = 270, H = 400;
       const cv = document.createElement('canvas');
-      cv.width  = FW * SCALE;
-      cv.height = FH * SCALE;
+      cv.width = W * SCALE; cv.height = H * SCALE;
       const ctx = cv.getContext('2d');
       ctx.scale(SCALE, SCALE);
-
       // 背景图
-      if (bgImg && bgImg.naturalWidth > 0) {
-        try { ctx.drawImage(bgImg, 0, 0, FW, FH); } catch (_) {}
+      const bgImg = document.getElementById('preview');
+      if (bgImg.naturalWidth > 0) {
+        try { ctx.drawImage(bgImg, 0, 0, W, H); }
+        catch (_) {
+          const img = new Image(); img.crossOrigin = 'anonymous';
+          await new Promise(r => { img.onload = img.onerror = r; img.src = bgImg.src; });
+          try { ctx.drawImage(img, 0, 0, W, H); } catch (_2) {}
+        }
       }
-
-      // 各文字图层——用 Range API 逐字读取 DOM 实际渲染位置，彻底避免手动排版
+      // 各文字图层（按 frame 内 DOM 顺序渲染）
       for (const lid of ['layer_to', 'layer_msg', 'layer_from', 'layer_date']) {
         const layer = document.getElementById(lid);
         if (!layer || layer.style.display === 'none') continue;
-        const textNode = layer.firstChild;
-        if (!textNode || textNode.nodeType !== Node.TEXT_NODE) continue;
-        const text = textNode.textContent;
-        if (!text.trim()) continue;
-
-        const lr = layer.getBoundingClientRect();
-        const lx = lr.left - imgR.left;
-        const ly = lr.top  - imgR.top;
-        const lw = lr.width;
-        const lh = lr.height;
-
-        const cs = getComputedStyle(layer);
-        const fontSize  = parseFloat(cs.fontSize)    || 28;
-        const color     = cs.color                   || '#111111';
-        const bgColor   = cs.backgroundColor;
-        const fontFamily = cs.fontFamily             || 'sans-serif';
-        const borderRad = parseFloat(cs.borderRadius) || 0;
-        const strokeW   = parseFloat(cs.webkitTextStrokeWidth) || 0;
-        const strokeC   = cs.webkitTextStrokeColor   || '#000000';
-        const transform = cs.transform;
-
+        const text = (layer.textContent || '').trim();
+        if (!text) continue;
+        const card = document.querySelector(`.field-card[data-layer="${lid}"]`);
+        if (!card) continue;
+        const q = s => card.querySelector(s);
+        const x  = +(q('.field-x')?.value)            || 0;
+        const y  = +(q('.field-y')?.value)            || 0;
+        const w  = +(q('.field-w')?.value)            || 100;
+        const h  = +(q('.field-h')?.value)            || 50;
+        const fs = +(q('.field-size')?.value)         || 28;
+        const sp = +(q('.field-spacing')?.value)      || 0;
+        const lh = +(q('.field-line-spacing')?.value) || 1.3;
+        const color  = q('.color-row button.active')?.dataset.color || '#111111';
+        const bgCol  = q('.bgc-row button.active')?.dataset.bgc;
+        const dir    = q('.dir-row button.active')?.dataset.dir || 'h';
+        const aH     = q('.field-align-h')?.value  || 'center';
+        const aV     = q('.field-align-v')?.value  || 'center';
+        const deg    = +(q('.field-rotate')?.value)     || 0;
+        const sw     = +(q('.field-stroke-w')?.value)   || 0;
+        const sc     = q('.field-stroke-c')?.value      || '#000000';
+        const radius = +(q('.field-radius')?.value)     || 0;
+        const ff     = layer.style.fontFamily || 'sans-serif';
         ctx.save();
-
-        // 旋转
-        if (transform && transform !== 'none') {
-          const m = transform.match(/matrix\(([^)]+)\)/);
-          if (m) {
-            const vals = m[1].split(',').map(Number);
-            const angle = Math.atan2(vals[1], vals[0]);
-            if (Math.abs(angle) > 0.001) {
-              const cx = lx + lw / 2, cy = ly + lh / 2;
-              ctx.translate(cx, cy);
-              ctx.rotate(angle);
-              ctx.translate(-cx, -cy);
-            }
-          }
+        if (deg) {
+          ctx.translate(x + w / 2, y + h / 2);
+          ctx.rotate(deg * Math.PI / 180);
+          ctx.translate(-(x + w / 2), -(y + h / 2));
         }
-
-        // 背景色
-        if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
-          ctx.fillStyle = bgColor;
-          _rrect(ctx, lx, ly, lw, lh, borderRad);
-          ctx.fill();
+        if (bgCol && bgCol !== 'transparent') {
+          ctx.fillStyle = bgCol;
+          _rrect(ctx, x, y, w, h, radius); ctx.fill();
         }
-
-        // 裁剪
-        _rrect(ctx, lx, ly, lw, lh, borderRad);
-        ctx.clip();
-
-        ctx.font = `${fontSize}px ${fontFamily}`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = color;
-
-        // 逐字读取 DOM 实际渲染坐标，用字符中心点对齐（消除字形宽度差异导致的偏移）
-        const range = document.createRange();
-        for (let i = 0; i < textNode.length; i++) {
-          const ch = text[i];
-          range.setStart(textNode, i);
-          range.setEnd(textNode, i + 1);
-          const cr = range.getBoundingClientRect();
-          const cx = cr.left - imgR.left + cr.width / 2;
-          const cy = cr.top  - imgR.top  + cr.height / 2;
-
-          if (strokeW > 0) {
-            ctx.save();
-            ctx.strokeStyle = strokeC;
-            ctx.lineWidth = strokeW * 2;
-            ctx.lineJoin = 'round';
-            ctx.strokeText(ch, cx, cy);
-            ctx.restore();
-          }
-          ctx.fillText(ch, cx, cy);
-        }
-
+        _rrect(ctx, x, y, w, h, radius); ctx.clip();
+        ctx.font = `${fs}px ${ff}`;
+        if ('letterSpacing' in ctx) ctx.letterSpacing = sp + 'px';
+        if (dir === 'v') _drawV(ctx, text, x, y, w, h, fs, lh, sp, aH, aV, color, sw, sc);
+        else             _drawH(ctx, text, x, y, w, h, fs, lh, sp, aH, aV, color, sw, sc);
         ctx.restore();
       }
       return cv;
