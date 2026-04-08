@@ -105,21 +105,53 @@ try {
 		$createdFiles[] = $backupPath;
 	}
 
-	// 调用 minpng.py 压缩图片
-	$imgStatus = '图片压缩成功';
-	$minpngScript = __DIR__ . DIRECTORY_SEPARATOR . 'minpng.py';
-	$cmdImg = escapeshellcmd('python3') . ' ' . escapeshellarg($minpngScript) . ' ' . escapeshellarg($imagePath) . ' ' . escapeshellarg($imagePath);
-	$cmdImgWithErr = $cmdImg . ' 2>&1';
-	exec($cmdImgWithErr, $imgOutput, $imgReturnCode);
-	if ($imgReturnCode !== 0) {
-		$imgError = "图片压缩失败 (code {$imgReturnCode})";
-		error_log($imgError);
-		add_client_log($imgError);
-		add_client_log("图片压缩命令: {$cmdImg}");
-		if (!empty($imgOutput)) {
-			add_client_log("图片压缩输出:\n" . implode("\n", $imgOutput));
+	// 调用图片处理脚本
+	$imgStatus = '图片处理成功';
+	$mode = isset($_POST['mode']) ? trim($_POST['mode']) : '';
+	$bgPath = isset($_POST['bg_path']) ? trim($_POST['bg_path']) : '';
+
+	if ($mode === 'compose' && $bgPath !== '') {
+		// apply.html 模式：compose.py 合成背景图 + 透明文字层
+		// bg_path 是相对于 dl/ 的路径，如 "pic/xxx.png"
+		$bgFullPath = $baseDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $bgPath);
+		if (!is_file($bgFullPath)) {
+			add_client_log('背景图不存在: ' . $bgPath);
+			$imgStatus = '背景图不存在';
+		} else {
+			$composeScript = __DIR__ . DIRECTORY_SEPARATOR . 'compose.py';
+			$cmdImg = escapeshellcmd('python3') . ' ' . escapeshellarg($composeScript)
+				. ' ' . escapeshellarg($bgFullPath)
+				. ' ' . escapeshellarg($imagePath)
+				. ' ' . escapeshellarg($imagePath);
+			$cmdImgWithErr = $cmdImg . ' 2>&1';
+			exec($cmdImgWithErr, $imgOutput, $imgReturnCode);
+			if ($imgReturnCode !== 0) {
+				$imgError = "图片合成失败 (code {$imgReturnCode})";
+				error_log($imgError);
+				add_client_log($imgError);
+				add_client_log("合成命令: {$cmdImg}");
+				if (!empty($imgOutput)) {
+					add_client_log("合成输出:\n" . implode("\n", $imgOutput));
+				}
+				$imgStatus = '图片合成失败';
+			}
 		}
-		$imgStatus = '图片压缩失败';
+	} else {
+		// 原有模式：minpng.py 压缩图片
+		$minpngScript = __DIR__ . DIRECTORY_SEPARATOR . 'minpng.py';
+		$cmdImg = escapeshellcmd('python3') . ' ' . escapeshellarg($minpngScript) . ' ' . escapeshellarg($imagePath) . ' ' . escapeshellarg($imagePath);
+		$cmdImgWithErr = $cmdImg . ' 2>&1';
+		exec($cmdImgWithErr, $imgOutput, $imgReturnCode);
+		if ($imgReturnCode !== 0) {
+			$imgError = "图片压缩失败 (code {$imgReturnCode})";
+			error_log($imgError);
+			add_client_log($imgError);
+			add_client_log("图片压缩命令: {$cmdImg}");
+			if (!empty($imgOutput)) {
+				add_client_log("图片压缩输出:\n" . implode("\n", $imgOutput));
+			}
+			$imgStatus = '图片压缩失败';
+		}
 	}
 
 	$audioStatus = '音频未上传';

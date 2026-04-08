@@ -1,0 +1,867 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>祝福牌 · 模板应用</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121826;
+      --text: #e6edf3;
+      --muted: #9aa4b2;
+      --border: rgba(255,255,255,0.10);
+      --btn: #1f6feb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      padding: 12px;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    .frame {
+      margin-top: 6px;
+      width: 100%;
+      aspect-ratio: 270 / 400;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      position: relative;
+      user-select: none;
+    }
+    .frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .text-layer {
+      position: absolute;
+      z-index: 10;
+      font-size: 28px;
+      line-height: 1.3;
+      white-space: pre-wrap;
+      word-break: break-word;
+      pointer-events: none;
+      display: none;
+      padding: 0;
+      overflow: hidden;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      paint-order: stroke fill;
+    }
+
+    .field-card {
+      margin-top: 14px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .field-card .field-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .field-card .field-title .limit {
+      font-size: 11px;
+      color: #555;
+      font-weight: 400;
+      margin-left: 4px;
+    }
+    .field-card input[type="text"],
+    .field-card input[type="date"] {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 16px;
+      line-height: 1.3;
+      outline: none;
+    }
+    .field-card input:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .field-card input::placeholder { color: #555; }
+
+    .btn-generate {
+      margin-top: 16px;
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #3068ff, #5a8cff);
+      color: #fff;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn-generate:disabled { opacity: .5; cursor: default; }
+
+    .field-status {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    /* 录音按钮样式 */
+    .record-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .record-btn {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--panel);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .record-btn:hover {
+      border-color: #d1242f;
+      background: rgba(209, 36, 47, 0.1);
+    }
+    .record-btn:active { transform: scale(0.95); }
+    .record-btn.recording {
+      border-color: #d1242f;
+      background: rgba(209, 36, 47, 0.2);
+      animation: pulse 1s infinite;
+    }
+    .record-btn.recording svg path { fill: #d1242f; }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(209, 36, 47, 0.4); }
+      50% { box-shadow: 0 0 0 10px rgba(209, 36, 47, 0); }
+    }
+    .record-progress {
+      display: none;
+      width: 80px;
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      margin-bottom: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+    .record-progress.show { display: block; }
+    .record-progress-bar {
+      height: 100%;
+      background: #d1242f;
+      border-radius: 3px;
+      width: 100%;
+      transition: width 0.1s linear;
+    }
+    .record-timer {
+      position: absolute;
+      top: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 14px;
+      color: #d1242f;
+      font-weight: bold;
+    }
+    .record-hint {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* 发送祝福按钮 */
+    .send-section {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+    }
+    .send-btn {
+      background: #8b0000;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 40px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .send-btn:hover { background: #a00000; }
+    .send-btn:active { transform: scale(0.98); }
+
+    /* 发送成功提示 */
+    .send-success-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #0f172a;
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+    }
+    .send-success-overlay.show { display: flex; }
+    .send-success-content { text-align: center; padding: 20px; }
+    .send-success-text { font-size: 20px; color: #fff; margin-bottom: 16px; }
+    .send-success-time { font-size: 16px; color: #d1242f; }
+
+    /* 加载遮罩 */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: none;
+      place-items: center;
+      z-index: 999;
+      padding: 16px;
+    }
+    .overlay.show { display: grid; }
+    .overlay-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      width: min(90vw, 360px);
+      color: var(--text);
+      text-align: center;
+    }
+    .overlay-title { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+    .overlay-bar {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .overlay-bar > span {
+      display: block;
+      height: 100%;
+      width: 45%;
+      background: var(--btn);
+      border-radius: inherit;
+      animation: loadingBar 1.2s ease-in-out infinite;
+    }
+    @keyframes loadingBar {
+      0% { transform: translateX(-100%); }
+      50% { transform: translateX(80%); }
+      100% { transform: translateX(220%); }
+    }
+    .overlay-hint { font-size: 12px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="frame" id="frame">
+      <div id="layer_to" class="text-layer"></div>
+      <div id="layer_msg" class="text-layer"></div>
+      <div id="layer_from" class="text-layer"></div>
+      <div id="layer_date" class="text-layer"></div>
+      <img id="bgImg" src="" alt="模板底图" />
+    </div>
+
+    <div class="field-card">
+      <div class="field-title">祝福给 <span class="limit">（≤5字）</span></div>
+      <input type="text" id="input_to" maxlength="5" placeholder="收件人名字" />
+    </div>
+
+    <div class="field-card">
+      <div class="field-title">祝福语 <span class="limit">（≤15字）</span></div>
+      <input type="text" id="input_msg" maxlength="15" placeholder="写一句祝福语" />
+    </div>
+
+    <div class="field-card">
+      <div class="field-title">送祝福人 <span class="limit">（≤5字）</span></div>
+      <input type="text" id="input_from" maxlength="5" placeholder="你的名字" />
+    </div>
+
+    <div class="field-card">
+      <div class="field-title">时间</div>
+      <input type="date" id="input_date" />
+    </div>
+
+    <button type="button" class="btn-generate" id="btnGenerate">生成祝福牌</button>
+    <div class="field-status" id="genStatus"></div>
+
+    <!-- 录音 -->
+    <div class="record-section" style="display:none;">
+      <div class="record-progress" id="recordProgress">
+        <div class="record-progress-bar" id="recordProgressBar"></div>
+        <span class="record-timer" id="recordTimer">10</span>
+      </div>
+      <button id="btnRecord" class="record-btn" aria-label="录音">
+        <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" width="56" height="56"><path d="M429.8 650.2h164.5c53.7 0 97.6-43.9 97.6-97.6V377.1H585.3v-40h106.6v-40H585.3v-40h106.6v-40H585.3v-40h106.6v-15.6c0-53.7-43.9-97.6-97.6-97.6H429.8c-53.7 0-97.6 43.9-97.6 97.6v15.6h106.6v40H332.1v40h106.6v40H332.1v40h106.6v40H332.1v175.5c0 53.7 44 97.6 97.7 97.6z" fill="#bfbfbf"></path><path d="M825.1 380.4c-18.4 0-33.3 14.9-33.3 33.3v186.5c0 69.8-57.5 126.6-128.3 126.6h-303c-70.7 0-128.3-56.8-128.3-126.6V413.7c0-18.4-14.9-33.3-33.3-33.3s-33.3 14.9-33.3 33.3v186.5c0 106.5 87.4 193.2 194.9 193.2H472V920c0 22 18 40 40 40s40-18 40-40V793.5h111.5c107.5 0 194.9-86.7 194.9-193.2V413.7c0-18.4-14.9-33.3-33.3-33.3z" fill="#bfbfbf"></path></svg>
+      </button>
+      <div class="record-hint">可录制祝福语</div>
+      <audio id="recordedAudio" style="display:none;"></audio>
+    </div>
+
+    <!-- 发送祝福 -->
+    <div class="send-section" style="display:none;">
+      <button id="btnSendBlessing" class="send-btn">发送祝福</button>
+    </div>
+  </div>
+
+  <!-- 发送成功提示 -->
+  <div id="sendSuccessOverlay" class="send-success-overlay">
+    <div class="send-success-content">
+      <div class="send-success-text">祝福已经发送到你的祝福牌</div>
+      <div class="send-success-time">将在 00:00 分更新</div>
+    </div>
+  </div>
+
+  <!-- 加载遮罩 -->
+  <div id="loadingOverlay" class="overlay" role="dialog" aria-live="polite">
+    <div class="overlay-card">
+      <div class="overlay-title">正在生成祝福牌</div>
+      <div class="overlay-bar"><span></span></div>
+      <div class="overlay-hint">请稍后…</div>
+    </div>
+  </div>
+
+  <script>
+    const FONT_API = '../../font/dfont.php';
+    const loadingOverlay = document.getElementById('loadingOverlay');
+
+    // 繁体字体列表
+    const TRADITIONAL_FONTS = new Set(['bfs', 'MasaFont-Bold', 'SotyrFangsong-Regular']);
+    let _s2tConverter = null;
+    function s2t(text) {
+      if (!text) return text;
+      try {
+        if (!_s2tConverter && typeof OpenCC !== 'undefined') {
+          _s2tConverter = OpenCC.Converter({ from: 'cn', to: 'tw' });
+        }
+        return _s2tConverter ? _s2tConverter(text) : text;
+      } catch (e) { return text; }
+    }
+
+    // 已加载字体缓存
+    const loadedFonts = {};
+
+    // 日期格式化
+    const CN_DIGITS = ['零','一','二','三','四','五','六','七','八','九'];
+    function numToCn(n) { return String(n).split('').map(c => CN_DIGITS[parseInt(c)]).join(''); }
+    function monthToCn(m) { if (m <= 10) return CN_DIGITS[m]; if (m === 11) return '十一'; return '十二'; }
+    function dayToCn(d) {
+      if (d <= 10) return CN_DIGITS[d];
+      if (d < 20) return '十' + CN_DIGITS[d - 10];
+      if (d === 20) return '二十';
+      if (d < 30) return '二十' + CN_DIGITS[d - 20];
+      if (d === 30) return '三十';
+      return '三十' + CN_DIGITS[d - 30];
+    }
+    const TIAN_GAN = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+    const DI_ZHI   = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+    const DZ_MONTH = ['寅','卯','辰','巳','午','未','申','酉','戌','亥','子','丑'];
+    function yearToGanZhi(y) { return TIAN_GAN[(y - 4) % 10] + DI_ZHI[(y - 4) % 12]; }
+    function monthToGanZhi(m) { return DZ_MONTH[m - 1] + '月'; }
+    function formatDate(dateStr, fmt) {
+      if (!dateStr) return '';
+      const [fy, fm, fd] = dateStr.split('-').map(Number);
+      const y2 = fy % 100;
+      switch (fmt) {
+        case 'cn_full': return numToCn(y2) + '年' + monthToCn(fm) + '月' + dayToCn(fd) + '日';
+        case 'cn_ym':   return numToCn(y2) + '·' + monthToCn(fm) + '月';
+        case 'gz':      return yearToGanZhi(fy) + '年·' + monthToGanZhi(fm);
+        case 'num_full': return y2 + '年' + String(fm).padStart(2,'0') + '月' + String(fd).padStart(2,'0') + '日';
+        case 'num_ym':  return y2 + '年' + String(fm).padStart(2,'0') + '月';
+        case 'dash_full': return y2 + '·' + String(fm).padStart(2,'0') + '·' + String(fd).padStart(2,'0');
+        case 'dash_ym': return y2 + '·' + String(fm).padStart(2,'0');
+        default: return dateStr;
+      }
+    }
+
+    // 默认日期为今天
+    const dateInput = document.getElementById('input_date');
+    {
+      const d = new Date();
+      dateInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    // ── 从 URL 参数读取模板 ──────────────────────────────────────
+    const urlParams = new URLSearchParams(window.location.search);
+    const templateId = urlParams.get('template_id');
+
+    // 设置底图
+    (function () {
+      const bg = urlParams.get('bg');
+      if (bg) document.getElementById('bgImg').src = '../' + bg;
+    })();
+
+    // 模板配置（从服务器加载）
+    let templateConfig = null;
+
+    // 加载模板配置
+    (async function () {
+      if (!templateId) return;
+      try {
+        const resp = await fetch('../template.php?action=get_config&template_id=' + encodeURIComponent(templateId));
+        const json = await resp.json();
+        if (!json.ok || !json.config) return;
+        templateConfig = JSON.parse(json.config);
+      } catch (e) {
+        console.warn('模板配置加载失败:', e);
+      }
+    })();
+
+    // ── 应用模板样式到图层 ───────────────────────────────────────
+    function applyLayerStyle(layerId, text) {
+      const layer = document.getElementById(layerId);
+      if (!layer || !templateConfig || !templateConfig[layerId]) return;
+      const s = templateConfig[layerId];
+      if (!text) { layer.style.display = 'none'; return; }
+
+      layer.style.display = 'flex';
+      layer.textContent = text;
+
+      // 位置
+      const x = parseInt(s.x) || 0;
+      const y = parseInt(s.y) || 0;
+      const w = parseInt(s.w) || 100;
+      const h = parseInt(s.h) || 50;
+      layer.style.left = (x / 270 * 100) + '%';
+      layer.style.top = (y / 400 * 100) + '%';
+      layer.style.width = (w / 270 * 100) + '%';
+      layer.style.height = (h / 400 * 100) + '%';
+
+      // 字号
+      layer.style.fontSize = (parseInt(s.size) || 28) + 'px';
+
+      // 颜色
+      layer.style.color = s.color || '#111111';
+
+      // 背景色
+      layer.style.backgroundColor = s.bgColor || 'transparent';
+
+      // 字间距
+      layer.style.letterSpacing = (parseInt(s.spacing) || 0) + 'px';
+
+      // 行间距
+      layer.style.lineHeight = parseFloat(s.lineSpacing) || 1.3;
+
+      // 对齐
+      layer.style.justifyContent = s.alignH || 'center';
+      layer.style.alignItems = s.alignV || 'center';
+      layer.style.textAlign = s.alignH === 'flex-start' ? 'left' : s.alignH === 'flex-end' ? 'right' : 'center';
+
+      // 方向
+      layer.style.writingMode = s.dir === 'v' ? 'vertical-lr' : 'horizontal-tb';
+
+      // 旋转
+      layer.style.transform = `rotate(${parseInt(s.rotate) || 0}deg)`;
+
+      // 描边
+      const sw = parseFloat(s.strokeW) || 0;
+      layer.style.webkitTextStroke = sw > 0 ? `${sw}px ${s.strokeC || '#000000'}` : '';
+
+      // 圆角
+      layer.style.borderRadius = (parseInt(s.radius) || 0) + 'px';
+    }
+
+    // ── 加载字体并渲染 ──────────────────────────────────────────
+    async function loadFontForLayer(layerId, text) {
+      if (!templateConfig || !templateConfig[layerId]) return null;
+      const s = templateConfig[layerId];
+      const fontName = s.font || 'default';
+      if (fontName === 'default') return 'sans-serif';
+
+      const isTraditional = TRADITIONAL_FONTS.has(fontName);
+      const displayText = isTraditional ? s2t(text) : text;
+      const cacheKey = fontName + '|' + displayText;
+
+      if (loadedFonts[cacheKey]) return loadedFonts[cacheKey];
+
+      const uniqueChars = [...new Set(displayText.replace(/\s/g, ''))].join('');
+      const url = `${FONT_API}?font=${encodeURIComponent(fontName)}&text=${encodeURIComponent(uniqueChars)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('字体加载失败: ' + resp.status);
+
+      const data = await resp.arrayBuffer();
+      const familyKey = `CustomFont_${fontName}_${[...new Set(displayText)].sort().join('').slice(0, 16)}`;
+      const face = new FontFace(familyKey, data, { style: 'normal', weight: 'normal' });
+      await face.load();
+      document.fonts.add(face);
+      loadedFonts[cacheKey] = familyKey;
+      return familyKey;
+    }
+
+    // ── Canvas 合成缩略图 ───────────────────────────────────────
+    function _rrect(ctx, x, y, w, h, r) {
+      r = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y,     x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x,     y + h, r);
+      ctx.arcTo(x,     y + h, x,     y,     r);
+      ctx.arcTo(x,     y,     x + w, y,     r);
+      ctx.closePath();
+    }
+
+    function buildOutputCanvas() {
+      const frame = document.getElementById('frame');
+      const bgImg = document.getElementById('bgImg');
+      const imgR = bgImg.getBoundingClientRect();
+      const FW = imgR.width;
+      const FH = imgR.height;
+      const SCALE = 2;
+
+      const cv = document.createElement('canvas');
+      cv.width  = FW * SCALE;
+      cv.height = FH * SCALE;
+      const ctx = cv.getContext('2d');
+      ctx.scale(SCALE, SCALE);
+
+      // 不绘制底图，保持透明背景，只绘制文字图层
+
+      for (const lid of ['layer_to', 'layer_msg', 'layer_from', 'layer_date']) {
+        const layer = document.getElementById(lid);
+        if (!layer || layer.style.display === 'none') continue;
+        const textNode = layer.firstChild;
+        if (!textNode || textNode.nodeType !== Node.TEXT_NODE) continue;
+        const text = textNode.textContent;
+        if (!text.trim()) continue;
+
+        const lr = layer.getBoundingClientRect();
+        const lx = lr.left - imgR.left;
+        const ly = lr.top  - imgR.top;
+        const lw = lr.width;
+        const lh = lr.height;
+
+        const cs = getComputedStyle(layer);
+        const fontSize  = parseFloat(cs.fontSize)    || 28;
+        const color     = cs.color                   || '#111111';
+        const bgColor   = cs.backgroundColor;
+        const fontFamily = cs.fontFamily             || 'sans-serif';
+        const borderRad = parseFloat(cs.borderRadius) || 0;
+        const strokeW   = parseFloat(cs.webkitTextStrokeWidth) || 0;
+        const strokeC   = cs.webkitTextStrokeColor   || '#000000';
+        const transform = cs.transform;
+
+        ctx.save();
+
+        if (transform && transform !== 'none') {
+          const m = transform.match(/matrix\(([^)]+)\)/);
+          if (m) {
+            const vals = m[1].split(',').map(Number);
+            const angle = Math.atan2(vals[1], vals[0]);
+            if (Math.abs(angle) > 0.001) {
+              const cx = lx + lw / 2, cy = ly + lh / 2;
+              ctx.translate(cx, cy);
+              ctx.rotate(angle);
+              ctx.translate(-cx, -cy);
+            }
+          }
+        }
+
+        if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+          ctx.fillStyle = bgColor;
+          _rrect(ctx, lx, ly, lw, lh, borderRad);
+          ctx.fill();
+        }
+
+        _rrect(ctx, lx, ly, lw, lh, borderRad);
+        ctx.clip();
+
+        ctx.font = `${fontSize}px ${fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = color;
+
+        const range = document.createRange();
+        for (let i = 0; i < textNode.length; i++) {
+          const ch = text[i];
+          range.setStart(textNode, i);
+          range.setEnd(textNode, i + 1);
+          const cr = range.getBoundingClientRect();
+          const cx = cr.left - imgR.left + cr.width / 2;
+          const cy = cr.top  - imgR.top  + cr.height / 2;
+
+          if (strokeW > 0) {
+            ctx.save();
+            ctx.strokeStyle = strokeC;
+            ctx.lineWidth = strokeW * 2;
+            ctx.lineJoin = 'round';
+            ctx.strokeText(ch, cx, cy);
+            ctx.restore();
+          }
+          ctx.fillText(ch, cx, cy);
+        }
+
+        ctx.restore();
+      }
+      return cv;
+    }
+
+    // ── 生成祝福牌 ──────────────────────────────────────────────
+    const btnGenerate = document.getElementById('btnGenerate');
+    const genStatus = document.getElementById('genStatus');
+
+    btnGenerate.addEventListener('click', async () => {
+      if (!templateConfig) {
+        genStatus.textContent = '模板配置尚未加载，请稍后重试';
+        genStatus.style.color = '#f85149';
+        return;
+      }
+
+      const textTo   = document.getElementById('input_to').value.trim();
+      const textMsg  = document.getElementById('input_msg').value.trim();
+      const textFrom = document.getElementById('input_from').value.trim();
+      const dateVal  = document.getElementById('input_date').value;
+
+      // 日期格式化
+      const dateFmt = templateConfig.layer_date?.dateFmt || 'cn_full';
+      const dateText = formatDate(dateVal, dateFmt);
+
+      genStatus.textContent = '';
+      btnGenerate.disabled = true;
+      loadingOverlay.classList.add('show');
+
+      try {
+        // 收集需要加载的字体（去重）
+        const layerTexts = {
+          layer_to:   textTo,
+          layer_msg:  textMsg,
+          layer_from: textFrom,
+          layer_date: dateText
+        };
+
+        // 加载所有字体
+        const fontFamilies = {};
+        for (const [lid, text] of Object.entries(layerTexts)) {
+          if (!text) continue;
+          const family = await loadFontForLayer(lid, text);
+          if (family) fontFamilies[lid] = family;
+        }
+
+        // 渲染每个图层
+        for (const [lid, text] of Object.entries(layerTexts)) {
+          if (!text) {
+            const layer = document.getElementById(lid);
+            if (layer) layer.style.display = 'none';
+            continue;
+          }
+          const s = templateConfig[lid];
+          const isTraditional = s && TRADITIONAL_FONTS.has(s.font);
+          const displayText = isTraditional ? s2t(text) : text;
+          applyLayerStyle(lid, displayText);
+          const layer = document.getElementById(lid);
+          if (layer && fontFamilies[lid]) {
+            layer.style.fontFamily = fontFamilies[lid];
+          }
+        }
+
+        // 渲染完成，显示录音和发送按钮
+        document.querySelector('.record-section').style.display = '';
+        document.querySelector('.send-section').style.display = '';
+        btnGenerate.textContent = '重新生成';
+      } catch (err) {
+        console.error(err);
+        genStatus.textContent = '生成失败: ' + err.message;
+        genStatus.style.color = '#f85149';
+      } finally {
+        btnGenerate.disabled = false;
+        loadingOverlay.classList.remove('show');
+      }
+    });
+
+    // ========== 录音功能 ==========
+    const btnRecord = document.getElementById('btnRecord');
+    const recordProgress = document.getElementById('recordProgress');
+    const recordProgressBar = document.getElementById('recordProgressBar');
+    const recordTimer = document.getElementById('recordTimer');
+    const recordedAudio = document.getElementById('recordedAudio');
+
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let lastRecordedBlob = null;
+    let recordingTimer = null;
+    let recordingStartTime = null;
+    const MAX_RECORD_TIME = 10000;
+
+    async function startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        recordedChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          stream.getTracks().forEach(track => track.stop());
+          if (recordedChunks.length > 0) {
+            const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+            lastRecordedBlob = blob;
+            const audioUrl = URL.createObjectURL(blob);
+            recordedAudio.src = audioUrl;
+            recordedAudio.onloadeddata = () => {
+              recordedAudio.play().catch(() => {});
+            };
+          }
+        };
+
+        mediaRecorder.start(100);
+        recordingStartTime = Date.now();
+        btnRecord.classList.add('recording');
+        recordProgress.classList.add('show');
+        updateRecordProgress();
+        recordingTimer = setTimeout(() => stopRecording(), MAX_RECORD_TIME);
+      } catch (error) {
+        alert('无法访问麦克风，请检查权限设置');
+      }
+    }
+
+    function updateRecordProgress() {
+      if (!recordingStartTime || !mediaRecorder || mediaRecorder.state !== 'recording') return;
+      const elapsed = Date.now() - recordingStartTime;
+      const remaining = Math.max(0, MAX_RECORD_TIME - elapsed);
+      const percent = (remaining / MAX_RECORD_TIME) * 100;
+      recordProgressBar.style.width = percent + '%';
+      recordTimer.textContent = Math.ceil(remaining / 1000);
+      if (remaining > 0) requestAnimationFrame(updateRecordProgress);
+    }
+
+    function stopRecording() {
+      if (recordingTimer) { clearTimeout(recordingTimer); recordingTimer = null; }
+      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+      btnRecord.classList.remove('recording');
+      recordProgress.classList.remove('show');
+      recordProgressBar.style.width = '100%';
+      recordTimer.textContent = '10';
+      recordingStartTime = null;
+    }
+
+    btnRecord.addEventListener('pointerdown', (e) => { e.preventDefault(); startRecording(); });
+    btnRecord.addEventListener('pointerup', (e) => { e.preventDefault(); stopRecording(); });
+    btnRecord.addEventListener('pointerleave', () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') stopRecording();
+    });
+    btnRecord.addEventListener('pointercancel', () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') stopRecording();
+    });
+
+    // ========== 发送祝福 ==========
+    const btnSendBlessing = document.getElementById('btnSendBlessing');
+    const sendSuccessOverlay = document.getElementById('sendSuccessOverlay');
+
+    function buildImageBlob() {
+      return new Promise((resolve, reject) => {
+        const sourceCanvas = buildOutputCanvas();
+        // 缩放到 270x400
+        const scaledCanvas = document.createElement('canvas');
+        scaledCanvas.width = 270;
+        scaledCanvas.height = 400;
+        const ctx = scaledCanvas.getContext('2d');
+        ctx.drawImage(sourceCanvas, 0, 0, 270, 400);
+        scaledCanvas.toBlob((blob) => {
+          if (!blob) { reject(new Error('图片生成失败')); return; }
+          resolve(blob);
+        }, 'image/png');
+      });
+    }
+
+    function runServerLogs(htmlText) {
+      if (!htmlText || !htmlText.includes('<script>')) return;
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.srcdoc = htmlText;
+      document.body.appendChild(iframe);
+      setTimeout(() => iframe.remove(), 1500);
+    }
+
+    function extractPlainText(htmlText) {
+      if (!htmlText || !htmlText.includes('<')) return (htmlText || '').trim();
+      const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+      return (doc.body ? doc.body.textContent : htmlText).trim();
+    }
+
+    async function uploadBlessing() {
+      const query = window.location.search || '';
+      const raw = query.startsWith('?') ? query.slice(1) : query;
+      // 尝试从 URL 中提取设备参数（可能跟在模板参数后面）
+      // 支持两种格式：
+      // 1. ?template_id=X&bg=...&0226ae9TUWnWG12345678
+      // 2. ?0226ae9TUWnWG12345678（直接参数）
+      let deviceParam = '';
+      // 检查 URL 中是否有类似设备参数的部分
+      const fullUrl = window.location.href;
+      const match = fullUrl.match(/[?&](\d{4}[A-Za-z0-9]{9}[A-Za-z0-9]{8})(?:&|$)/);
+      if (match) {
+        deviceParam = match[1];
+      } else {
+        // 尝试从哈希或其他地方找
+        const hashMatch = (window.location.hash || '').match(/(\d{4}[A-Za-z0-9]{9}[A-Za-z0-9]{8})/);
+        if (hashMatch) deviceParam = hashMatch[1];
+      }
+
+      if (!deviceParam) {
+        alert('URL 缺少设备参数，无法发送祝福。');
+        return false;
+      }
+
+      const imageBlob = await buildImageBlob();
+      const formData = new FormData();
+      formData.append('image', imageBlob, 'capture.png');
+      if (lastRecordedBlob) formData.append('audio', lastRecordedBlob, 'record.wav');
+
+      // 标志 apply 模式，up.php 据此调用 compose.py 合成
+      formData.append('mode', 'compose');
+      const bg = urlParams.get('bg');
+      if (bg) formData.append('bg_path', bg);
+
+      const response = await fetch(`../up.php?${deviceParam}`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const text = await response.text();
+      runServerLogs(text);
+      if (!response.ok) throw new Error(extractPlainText(text) || '上传失败');
+      return true;
+    }
+
+    btnSendBlessing.addEventListener('click', async () => {
+      btnSendBlessing.disabled = true;
+      btnSendBlessing.textContent = '发送中...';
+      try {
+        await uploadBlessing();
+        document.querySelector('.wrap').style.display = 'none';
+        sendSuccessOverlay.classList.add('show');
+      } catch (error) {
+        alert(error.message || '上传失败');
+      } finally {
+        btnSendBlessing.disabled = false;
+        btnSendBlessing.textContent = '发送祝福';
+      }
+    });
+
+    // 页面加载时预请求麦克风权限
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => { stream.getTracks().forEach(track => track.stop()); })
+        .catch(() => {});
+    }
+  </script>
+</body>
+</html>
