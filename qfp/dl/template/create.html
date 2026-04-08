@@ -59,6 +59,21 @@
       transition: opacity .15s;
     }
     #publishBtn:disabled { opacity: .5; cursor: default; }
+    #changeBgBtn {
+      flex: none;
+      padding: 9px 14px;
+      border: 0;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    #changeBgBtn:hover {
+      background: rgba(255,255,255,0.15);
+    }
 
     .frame {
       margin-top: 6px;
@@ -286,16 +301,23 @@
       font-size: 14px;
       outline: none;
     }
-    .stroke-row input[type="color"] {
-      width: 36px;
-      height: 32px;
-      border: 1px solid var(--border);
+    .stroke-row select {
+      flex: 1;
+      min-width: 60px;
       border-radius: 8px;
-      background: transparent;
-      cursor: pointer;
-      padding: 2px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 6px 8px;
+      font-size: 13px;
+      outline: none;
     }
-    .stroke-row input:focus {
+    .stroke-row select option {
+      background: #fff;
+      color: #111;
+    }
+    .stroke-row input:focus,
+    .stroke-row select:focus {
       border-color: rgba(31,111,235,0.7);
       box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
     }
@@ -327,6 +349,36 @@
       box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
     }
     .radius-row span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .charlimit-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .charlimit-row label {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .charlimit-row input[type="number"] {
+      width: 58px;
+      flex: none;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 6px 8px;
+      font-size: 14px;
+      outline: none;
+    }
+    .charlimit-row input:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .charlimit-row span {
       font-size: 12px;
       color: var(--muted);
     }
@@ -501,6 +553,8 @@
   <div class="wrap">
     <div id="urlParam" class="url-param"></div>
     <div class="publish-bar">
+      <button type="button" id="changeBgBtn">换背景</button>
+      <input type="file" id="bgFileInput" accept="image/*" style="display:none" />
       <input type="text" id="tmplName" class="tmpl-name-input" placeholder="模板名称" />
       <button type="button" id="publishBtn">发布</button>
     </div>
@@ -521,8 +575,12 @@
       <button type="button" id="dashedBtn" title="切换虚线显示">虚线</button>
     </div>
     <div class="field-card" data-layer="layer_to" data-x="10" data-y="10" data-w="250" data-h="50">
-      <div class="field-title">祝福给 <span class="limit">（≤5字）</span></div>
-      <input type="text" class="field-input" maxlength="5" placeholder="收件人名字" />
+      <div class="field-title">祝福给</div>
+      <input type="text" class="field-input" placeholder="收件人名字" />
+      <div class="charlimit-row">
+        <label>最少</label><input type="number" class="field-min-len" value="1" min="0" max="999" step="1" /><span>字</span>
+        <label>最多</label><input type="number" class="field-max-len" value="5" min="0" max="999" step="1" /><span>字</span>
+      </div>
       <div class="xywh-row">
         <label>X</label><input type="number" class="field-x" value="10" min="0" max="270" step="1" />
         <label>Y</label><input type="number" class="field-y" value="10" min="0" max="400" step="1" />
@@ -583,7 +641,7 @@
       </div>
       <div class="stroke-row">
         <label>描边</label><input type="number" class="field-stroke-w" value="0" min="0" max="10" step="0.5" /><span>px</span>
-        <input type="color" class="field-stroke-c" value="#000000" title="描边颜色" />
+        <select class="field-stroke-c"><option value="#000000" selected>黑</option><option value="#d1242f">红</option><option value="#ffffff">白</option></select>
       </div>
       <div class="radius-row">
         <label>圆角</label><input type="number" class="field-radius" value="0" min="0" max="100" step="1" /><span>px</span>
@@ -594,8 +652,12 @@
 
     <!-- 祝福语 -->
     <div class="field-card" data-layer="layer_msg" data-x="10" data-y="80" data-w="250" data-h="200">
-      <div class="field-title">祝福语 <span class="limit">（≤15字）</span></div>
-      <input type="text" class="field-input" maxlength="15" placeholder="写一句祝福语" />
+      <div class="field-title">祝福语</div>
+      <input type="text" class="field-input" placeholder="写一句祝福语" />
+      <div class="charlimit-row">
+        <label>最少</label><input type="number" class="field-min-len" value="1" min="0" max="999" step="1" /><span>字</span>
+        <label>最多</label><input type="number" class="field-max-len" value="15" min="0" max="999" step="1" /><span>字</span>
+      </div>
       <div class="xywh-row">
         <label>X</label><input type="number" class="field-x" value="10" min="0" max="270" step="1" />
         <label>Y</label><input type="number" class="field-y" value="80" min="0" max="400" step="1" />
@@ -656,7 +718,7 @@
       </div>
       <div class="stroke-row">
         <label>描边</label><input type="number" class="field-stroke-w" value="0" min="0" max="10" step="0.5" /><span>px</span>
-        <input type="color" class="field-stroke-c" value="#000000" title="描边颜色" />
+        <select class="field-stroke-c"><option value="#000000" selected>黑</option><option value="#d1242f">红</option><option value="#ffffff">白</option></select>
       </div>
       <div class="radius-row">
         <label>圆角</label><input type="number" class="field-radius" value="0" min="0" max="100" step="1" /><span>px</span>
@@ -667,8 +729,12 @@
 
     <!-- 送祝福人 -->
     <div class="field-card" data-layer="layer_from" data-x="100" data-y="310" data-w="160" data-h="40">
-      <div class="field-title">送祝福人 <span class="limit">（≤5字）</span></div>
-      <input type="text" class="field-input" maxlength="5" placeholder="你的名字" />
+      <div class="field-title">送祝福人</div>
+      <input type="text" class="field-input" placeholder="你的名字" />
+      <div class="charlimit-row">
+        <label>最少</label><input type="number" class="field-min-len" value="1" min="0" max="999" step="1" /><span>字</span>
+        <label>最多</label><input type="number" class="field-max-len" value="5" min="0" max="999" step="1" /><span>字</span>
+      </div>
       <div class="xywh-row">
         <label>X</label><input type="number" class="field-x" value="100" min="0" max="270" step="1" />
         <label>Y</label><input type="number" class="field-y" value="310" min="0" max="400" step="1" />
@@ -729,7 +795,7 @@
       </div>
       <div class="stroke-row">
         <label>描边</label><input type="number" class="field-stroke-w" value="0" min="0" max="10" step="0.5" /><span>px</span>
-        <input type="color" class="field-stroke-c" value="#000000" title="描边颜色" />
+        <select class="field-stroke-c"><option value="#000000" selected>黑</option><option value="#d1242f">红</option><option value="#ffffff">白</option></select>
       </div>
       <div class="radius-row">
         <label>圆角</label><input type="number" class="field-radius" value="0" min="0" max="100" step="1" /><span>px</span>
@@ -811,7 +877,7 @@
       </div>
       <div class="stroke-row">
         <label>描边</label><input type="number" class="field-stroke-w" value="0" min="0" max="10" step="0.5" /><span>px</span>
-        <input type="color" class="field-stroke-c" value="#000000" title="描边颜色" />
+        <select class="field-stroke-c"><option value="#000000" selected>黑</option><option value="#d1242f">红</option><option value="#ffffff">白</option></select>
       </div>
       <div class="radius-row">
         <label>圆角</label><input type="number" class="field-radius" value="0" min="0" max="100" step="1" /><span>px</span>
@@ -833,6 +899,21 @@
   <script>
     const FONT_API = '../../font/dfont.php';
     const loadingOverlay = document.getElementById('loadingOverlay');
+
+    // 换背景按钮
+    (function () {
+      const changeBgBtn = document.getElementById('changeBgBtn');
+      const bgFileInput = document.getElementById('bgFileInput');
+      const preview = document.getElementById('preview');
+      changeBgBtn.addEventListener('click', () => bgFileInput.click());
+      bgFileInput.addEventListener('change', () => {
+        const file = bgFileInput.files[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        preview.onload = () => URL.revokeObjectURL(url);
+        preview.src = url;
+      });
+    })();
 
     // 虚线切换按钮
     (function () {
@@ -1017,6 +1098,8 @@
           strokeC:     card.querySelector('.field-stroke-c')?.value     ?? null,
           radius:      card.querySelector('.field-radius')?.value       ?? null,
           dateFmt:     card.querySelector('.field-date-fmt')?.value     ?? null,
+          minLen:      card.querySelector('.field-min-len')?.value      ?? null,
+          maxLen:      card.querySelector('.field-max-len')?.value      ?? null,
         };
       });
 
@@ -1029,6 +1112,10 @@
       fd.append('template_id', templateId);
       fd.append('tpl_name', tplName);
       fd.append('config', JSON.stringify(layers));
+
+      // 如果用户换过背景图，将新背景文件一并上传
+      const bgFile = document.getElementById('bgFileInput').files[0];
+      if (bgFile) fd.append('bg', bgFile, bgFile.name);
 
       // 用 Canvas API 自绘缩略图（精确还原排版，不依赖 html2canvas）
       try {
@@ -1436,6 +1523,8 @@
         setVal('.field-stroke-c',     s.strokeC);
         setVal('.field-radius',       s.radius);
         setVal('.field-date-fmt',     s.dateFmt);
+        setVal('.field-min-len',      s.minLen);
+        setVal('.field-max-len',      s.maxLen);
         // 输入文字
         if (s.text != null) {
           const inputEl = card.querySelector('.field-input');

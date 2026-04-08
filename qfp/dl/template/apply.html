@@ -280,18 +280,18 @@
     </div>
 
     <div class="field-card">
-      <div class="field-title">祝福给 <span class="limit">（≤5字）</span></div>
-      <input type="text" id="input_to" maxlength="5" placeholder="收件人名字" />
+      <div class="field-title">祝福给 <span class="limit" id="limit_to"></span></div>
+      <input type="text" id="input_to" placeholder="收件人名字" />
     </div>
 
     <div class="field-card">
-      <div class="field-title">祝福语 <span class="limit">（≤15字）</span></div>
-      <input type="text" id="input_msg" maxlength="15" placeholder="写一句祝福语" />
+      <div class="field-title">祝福语 <span class="limit" id="limit_msg"></span></div>
+      <input type="text" id="input_msg" placeholder="写一句祝福语" />
     </div>
 
     <div class="field-card">
-      <div class="field-title">送祝福人 <span class="limit">（≤5字）</span></div>
-      <input type="text" id="input_from" maxlength="5" placeholder="你的名字" />
+      <div class="field-title">送祝福人 <span class="limit" id="limit_from"></span></div>
+      <input type="text" id="input_from" placeholder="你的名字" />
     </div>
 
     <div class="field-card">
@@ -419,6 +419,33 @@
         const json = await resp.json();
         if (!json.ok || !json.config) return;
         templateConfig = JSON.parse(json.config);
+
+        // 根据模板配置应用字数限制
+        const limitMap = {
+          layer_to:   { input: 'input_to',   span: 'limit_to' },
+          layer_msg:  { input: 'input_msg',  span: 'limit_msg' },
+          layer_from: { input: 'input_from', span: 'limit_from' },
+        };
+        for (const [lid, ids] of Object.entries(limitMap)) {
+          const s = templateConfig[lid];
+          if (!s) continue;
+          const inputEl = document.getElementById(ids.input);
+          const spanEl  = document.getElementById(ids.span);
+          const minLen = parseInt(s.minLen) || 0;
+          const maxLen = parseInt(s.maxLen) || 0;
+          if (maxLen > 0 && inputEl) inputEl.maxLength = maxLen;
+          if (spanEl) {
+            if (minLen > 0 && maxLen > 0) {
+              spanEl.textContent = minLen === maxLen
+                ? `（必须${minLen}字）`
+                : `（${minLen}~${maxLen}字）`;
+            } else if (maxLen > 0) {
+              spanEl.textContent = `（≤${maxLen}字）`;
+            } else if (minLen > 0) {
+              spanEl.textContent = `（≥${minLen}字）`;
+            }
+          }
+        }
       } catch (e) {
         console.warn('模板配置加载失败:', e);
       }
@@ -627,6 +654,33 @@
       const textMsg  = document.getElementById('input_msg').value.trim();
       const textFrom = document.getElementById('input_from').value.trim();
       const dateVal  = document.getElementById('input_date').value;
+
+      // 字数范围校验
+      if (templateConfig) {
+        const checks = [
+          { lid: 'layer_to',   text: textTo,   label: '祝福给' },
+          { lid: 'layer_msg',  text: textMsg,  label: '祝福语' },
+          { lid: 'layer_from', text: textFrom, label: '送祝福人' },
+        ];
+        for (const { lid, text, label } of checks) {
+          const s = templateConfig[lid];
+          if (!s) continue;
+          const minLen = parseInt(s.minLen) || 0;
+          const maxLen = parseInt(s.maxLen) || 0;
+          if (minLen > 0 && text.length < minLen) {
+            genStatus.textContent = `「${label}」至少需要${minLen}字`;
+            genStatus.style.color = '#f85149';
+            btnGenerate.disabled = false;
+            return;
+          }
+          if (maxLen > 0 && text.length > maxLen) {
+            genStatus.textContent = `「${label}」最多${maxLen}字`;
+            genStatus.style.color = '#f85149';
+            btnGenerate.disabled = false;
+            return;
+          }
+        }
+      }
 
       // 日期格式化
       const dateFmt = templateConfig.layer_date?.dateFmt || 'cn_full';

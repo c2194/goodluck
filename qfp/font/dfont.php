@@ -81,6 +81,31 @@ $fonts = [
         'file' => 'sxt.woff2',
         'type' => 'woff2',
         'name' => '手写体'
+    ],
+    'fbzd' => [
+        'file' => 'fbzd.woff2',
+        'type' => 'woff2',
+        'name' => '飞波正点'
+    ],
+    'hot' => [
+        'file' => 'hot.woff2',
+        'type' => 'woff2',
+        'name' => '海鸥体'
+    ],
+    'kkct' => [
+        'file' => 'kkct.woff2',
+        'type' => 'woff2',
+        'name' => '可可体'
+    ],
+    'yfxy' => [
+        'file' => 'yfxy.woff2',
+        'type' => 'woff2',
+        'name' => '余繁新语'
+    ],
+    'lhls' => [
+        'file' => 'lhls.woff2',
+        'type' => 'woff2',
+        'name' => '临海隶属'
     ]
 ];
 

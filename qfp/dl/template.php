@@ -197,6 +197,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($templateId <= 0) {
             echo json_encode(['ok' => false, 'error' => '参数错误']); exit;
         }
+        // 可选：保存新背景图
+        $bgRel  = '';
+        $bgFile = $_FILES['bg'] ?? null;
+        if ($bgFile && (int) $bgFile['error'] === UPLOAD_ERR_OK) {
+            $mimeMap = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
+            $mime = '';
+            if (class_exists('finfo')) {
+                $fi   = new \finfo(FILEINFO_MIME_TYPE);
+                $mime = (string) $fi->file($bgFile['tmp_name']);
+            } elseif (function_exists('mime_content_type')) {
+                $mime = (string) mime_content_type($bgFile['tmp_name']);
+            }
+            if (!isset($mimeMap[$mime])) {
+                $extRaw = strtolower(pathinfo((string)($bgFile['name'] ?? ''), PATHINFO_EXTENSION));
+                $extMap = ['jpg' => 'jpg', 'jpeg' => 'jpg', 'png' => 'png', 'gif' => 'gif', 'webp' => 'webp'];
+                $ext = $extMap[$extRaw] ?? null;
+            } else {
+                $ext = $mimeMap[$mime];
+            }
+            if ($ext) {
+                $dir = __DIR__ . '/template/' . $templateId . '/';
+                if (!is_dir($dir)) @mkdir($dir, 0750, true);
+                $bgFilename = 'bg.' . $ext;
+                if (move_uploaded_file($bgFile['tmp_name'], $dir . $bgFilename)) {
+                    $bgRel = 'template/' . $templateId . '/' . $bgFilename;
+                    $updBg = $pdo->prepare('UPDATE templates SET bg_img = ? WHERE id = ?');
+                    $updBg->execute([$bgRel, $templateId]);
+                }
+            }
+        }
         // 可选：保存合成缩略图
         $thumbRel  = '';
         $thumbFile = $_FILES['thumb'] ?? null;
