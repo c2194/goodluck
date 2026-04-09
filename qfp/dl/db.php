@@ -122,7 +122,7 @@ function getDb(): PDO {
     if (!in_array('volume',     $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN volume     INTEGER NOT NULL DEFAULT 5');
     if (!in_array('cell',       $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN cell       TEXT    NOT NULL DEFAULT \'\'');
     if (!in_array('cell_at',    $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN cell_at    INTEGER NOT NULL DEFAULT 0');
-
+    if (!in_array('manual_location', $colNames)) $pdo->exec("ALTER TABLE devices ADD COLUMN manual_location TEXT NOT NULL DEFAULT ''");
     // 兼容旧状态值：将文本状态迁移为整数编号
     $pdo->exec("UPDATE devices SET factory_status = CASE factory_status
         WHEN 'new_registered' THEN 0

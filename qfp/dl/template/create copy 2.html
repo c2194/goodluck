@@ -1070,9 +1070,7 @@
       for (const lid of ['layer_to', 'layer_msg', 'layer_from', 'layer_date']) {
         const layer = document.getElementById(lid);
         if (!layer || layer.style.display === 'none') continue;
-        // 支持内嵌 span 结构（writing-mode 封装在 span 中）
-        const _innerEl = layer.firstElementChild;
-        const textNode = _innerEl ? _innerEl.firstChild : layer.firstChild;
+        const textNode = layer.firstChild;
         if (!textNode || textNode.nodeType !== Node.TEXT_NODE) continue;
         const text = textNode.textContent;
         if (!text.trim()) continue;
@@ -1470,8 +1468,7 @@
       if (dateFmtSelect) {
         dateFmtSelect.addEventListener('change', () => {
           if (layer.style.display !== 'none') {
-            const _sp = layer.firstElementChild;
-            if (_sp) _sp.textContent = getDisplayText();
+            layer.textContent = getDisplayText();
           }
         });
       }
@@ -1497,9 +1494,11 @@
 
       // 对齐方式实时更新
       function applyAlign() {
-        // flex 容器始终水平布局，justify 控左右，align 控上下，横/竖排均一致
-        layer.style.justifyContent = alignHSelect.value;
-        layer.style.alignItems     = alignVSelect.value;
+        const isV = currentDir === 'v';
+        // vertical-lr 时 flex 主轴为纵向，justify-content 控制上下，align-items 控制左右
+        // 需要把横轴(H)→alignItems，纵轴(V)→justifyContent
+        layer.style.justifyContent = isV ? alignVSelect.value : alignHSelect.value;
+        layer.style.alignItems    = isV ? alignHSelect.value : alignVSelect.value;
         layer.style.textAlign = alignHSelect.value === 'flex-start' ? 'left' : alignHSelect.value === 'flex-end' ? 'right' : 'center';
       }
       alignHSelect.addEventListener('change', () => {
@@ -1516,11 +1515,7 @@
           btn.classList.add('active');
           currentDir = btn.dataset.dir;
           if (layer.style.display !== 'none') {
-            const _sp = layer.firstElementChild;
-            if (_sp) {
-              _sp.style.writingMode = currentDir === 'v' ? 'vertical-lr' : 'horizontal-tb';
-              _sp.style.width  = currentDir === 'v' ? '' : '100%';
-            }
+            layer.style.writingMode = currentDir === 'v' ? 'vertical-lr' : 'horizontal-tb';
             applyAlign();
           }
         });
@@ -1601,18 +1596,13 @@
           return;
         }
         layer.style.display = 'flex';
-        // writing-mode 设在内部 span，flex 容器保持水平布局，避免轴重映导致的 overflow 裁剪异常
-        const _sp = document.createElement('span');
-        _sp.textContent = text;
-        _sp.style.writingMode = currentDir === 'v' ? 'vertical-lr' : 'horizontal-tb';
-        _sp.style.width = currentDir === 'v' ? '' : '100%';
-        layer.innerHTML = '';
-        layer.appendChild(_sp);
+        layer.textContent = text;
         layer.style.fontFamily = family;
         layer.style.fontSize = (parseInt(sizeInput.value) || 28) + 'px';
         layer.style.color = currentColor;
         layer.style.letterSpacing = (parseInt(spacingInput.value) || 0) + 'px';
         layer.style.lineHeight = parseFloat(lineSpacingInput.value) || 1.3;
+        layer.style.writingMode = currentDir === 'v' ? 'vertical-lr' : 'horizontal-tb';
         applyPosition();
         applyAlign();
         layer.style.transform = `rotate(${parseInt(rotateInput.value) || 0}deg)`;

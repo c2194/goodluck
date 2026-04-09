@@ -52,11 +52,12 @@ if (isset($_POST['action']) && in_array($_POST['action'], ['db_entry', 'db_setup
         $timeStart  = max(0, min(1439, intval($_POST['time_start']   ?? 0)));
         $timeEnd    = max(0, min(1439, intval($_POST['time_end']     ?? 1439)));
         $volume     = max(0, min(10,   intval($_POST['volume']       ?? 5)));
+        $manualLocation = mb_substr(trim((string)($_POST['manual_location'] ?? '')), 0, 20);
         if ($deviceId <= 0) {
             echo json_encode(['success' => false, 'error' => '参数无效']);
             exit;
         }
-        $pdo->prepare('UPDATE devices SET sleep=?, sleep_low=?, attime=?, time_start=?, time_end=?, volume=? WHERE id=?')->execute([$sleepNormal, $sleepLow, $attime, $timeStart, $timeEnd, $volume, $deviceId]);
+        $pdo->prepare('UPDATE devices SET sleep=?, sleep_low=?, attime=?, time_start=?, time_end=?, volume=?, manual_location=? WHERE id=?')->execute([$sleepNormal, $sleepLow, $attime, $timeStart, $timeEnd, $volume, $manualLocation, $deviceId]);
         echo json_encode(['success' => true]);
         exit;
     }
@@ -1107,6 +1108,7 @@ function renderDbEntries(panel, entries, deviceId) {
                 html += '<div class="setup-row"><span class="setup-label">位置信息</span><span class="setup-value" id="cell-location-' + deviceId + '">查询中...</span></div>';
                 pendingCellLoads.push({ cell: cell, targetId: 'cell-location-' + deviceId });
             }
+            html += '<div class="setup-row"><label class="setup-label" for="db-manual-loc-' + deviceId + '">手动位置说明</label><input class="setup-input" id="db-manual-loc-' + deviceId + '" type="text" maxlength="20" value="' + (device.manual_location || '') + '"></div>';
             html += '<div class="setup-row"><label class="setup-label" for="db-sleep-normal-' + deviceId + '">祝福切换间隔时间</label><input class="setup-input" id="db-sleep-normal-' + deviceId + '" type="number" value="' + sleepNormal + '" min="1"><span style="font-size:12px;color:#999;margin-left:4px">正常电量(秒)</span></div>';
             html += '<div class="setup-row"><span class="setup-label"></span><input class="setup-input" id="db-sleep-low-' + deviceId + '" type="number" value="' + sleepLow + '" min="1"><span style="font-size:12px;color:#999;margin-left:4px">低电量(秒)</span></div>';
             var attimeMins  = (device.attime >= 0 && device.attime <= 1439) ? device.attime : 0;
@@ -1198,6 +1200,7 @@ function saveDbSetup(btn, deviceId) {
     var tstartStr  = document.getElementById('db-tstart-'  + deviceId).value;
     var tendStr    = document.getElementById('db-tend-'    + deviceId).value;
     var volumeVal  = document.getElementById('db-volume-'  + deviceId).value;
+    var manualLocVal = document.getElementById('db-manual-loc-' + deviceId).value;
     function timeTomins(s) { var p = (s||'0:0').split(':'); return parseInt(p[0]||0)*60+parseInt(p[1]||0); }
     var atMins     = timeTomins(attimeStr);
     var tStartMins = timeTomins(tstartStr);
@@ -1211,6 +1214,7 @@ function saveDbSetup(btn, deviceId) {
     fd.append('time_start', tStartMins);
     fd.append('time_end', tEndMins);
     fd.append('volume', volumeVal);
+    fd.append('manual_location', manualLocVal);
     btn.disabled = true;
     btn.textContent = '保存中…';
     fetch(window.location.pathname, { method: 'POST', body: fd })
@@ -1226,6 +1230,7 @@ function saveDbSetup(btn, deviceId) {
                             dbDevicesCache[i].time_start = tStartMins;
                             dbDevicesCache[i].time_end = tEndMins;
                             dbDevicesCache[i].volume = parseInt(volumeVal);
+                            dbDevicesCache[i].manual_location = manualLocVal;
                             break;
                         }
                     }
