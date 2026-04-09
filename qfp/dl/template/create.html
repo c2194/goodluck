@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
@@ -511,6 +511,49 @@
       color: var(--muted);
     }
 
+    /* 发布弹窗 */
+    .publish-modal-card { text-align: left; }
+    .modal-field { margin-bottom: 12px; }
+    .modal-field label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .modal-field input, .modal-field select {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 14px;
+      outline: none;
+      box-sizing: border-box;
+    }
+    .modal-field input:focus, .modal-field select:focus {
+      border-color: rgba(31,111,235,.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,.2);
+    }
+    .modal-field select option { background: var(--panel); }
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .modal-actions button {
+      flex: 1;
+      padding: 9px 0;
+      border: 0;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .modal-btn-cancel  { background: rgba(255,255,255,0.08); color: var(--text); }
+    .modal-btn-save-as { background: rgba(255,255,255,0.12); color: var(--text); }
+    .modal-btn-confirm { background: var(--btn); color: #fff; }
+
     .jump-bar {
       display: flex;
       gap: 8px;
@@ -616,10 +659,15 @@
           <option value="sys">思源宋</option>
           <option value="syh">思源黑</option>
           <option value="sxt">手写体</option>
+          <option value="fbzd">飞波正点</option>
+          <option value="hot">海鸥体</option>
+          <option value="kkct">可可体</option>
+          <option value="yfxy">余繁新语</option>
+          <option value="lhls">临海隶属</option>
         </select>
-        <input type="number" class="field-size" value="28" min="12" max="60" step="2" />          <span class="spacing-label">字距</span>
-          <input type="number" class="field-spacing" value="0" min="-5" max="30" step="1" />          <span class="spacing-label">行距</span>
-          <input type="number" class="field-line-spacing" value="1.3" min="0.5" max="5" step="0.1" />      </div>
+        <input type="number" class="field-size" value="28" min="1" max="200" step="1" />          <span class="spacing-label">字距</span>
+          <input type="number" class="field-spacing" value="0" min="-100" max="100" step="1" />          <span class="spacing-label">行距</span>
+          <input type="number" class="field-line-spacing" value="1.3" min="0.1" max="10" step="0.1" />      </div>
       <div class="color-row">
         <button type="button" class="color-btn-black active" data-color="#111111">黑</button>
         <button type="button" class="color-btn-red" data-color="#d1242f">红</button>
@@ -693,10 +741,15 @@
           <option value="sys">思源宋</option>
           <option value="syh">思源黑</option>
           <option value="sxt">手写体</option>
+          <option value="fbzd">飞波正点</option>
+          <option value="hot">海鸥体</option>
+          <option value="kkct">可可体</option>
+          <option value="yfxy">余繁新语</option>
+          <option value="lhls">临海隶属</option>
         </select>
-        <input type="number" class="field-size" value="32" min="12" max="60" step="2" />          <span class="spacing-label">字距</span>
-          <input type="number" class="field-spacing" value="0" min="-5" max="30" step="1" />          <span class="spacing-label">行距</span>
-          <input type="number" class="field-line-spacing" value="1.3" min="0.5" max="5" step="0.1" />      </div>
+        <input type="number" class="field-size" value="32" min="1" max="200" step="1" />          <span class="spacing-label">字距</span>
+          <input type="number" class="field-spacing" value="0" min="-100" max="100" step="1" />          <span class="spacing-label">行距</span>
+          <input type="number" class="field-line-spacing" value="1.3" min="0.1" max="10" step="0.1" />      </div>
       <div class="color-row">
         <button type="button" class="color-btn-black" data-color="#111111">黑</button>
         <button type="button" class="color-btn-red active" data-color="#d1242f">红</button>
@@ -770,10 +823,15 @@
           <option value="sys">思源宋</option>
           <option value="syh">思源黑</option>
           <option value="sxt">手写体</option>
+          <option value="fbzd">飞波正点</option>
+          <option value="hot">海鸥体</option>
+          <option value="kkct">可可体</option>
+          <option value="yfxy">余繁新语</option>
+          <option value="lhls">临海隶属</option>
         </select>
-        <input type="number" class="field-size" value="24" min="12" max="60" step="2" />          <span class="spacing-label">字距</span>
-          <input type="number" class="field-spacing" value="0" min="-5" max="30" step="1" />          <span class="spacing-label">行距</span>
-          <input type="number" class="field-line-spacing" value="1.3" min="0.5" max="5" step="0.1" />      </div>
+        <input type="number" class="field-size" value="24" min="1" max="200" step="1" />          <span class="spacing-label">字距</span>
+          <input type="number" class="field-spacing" value="0" min="-100" max="100" step="1" />          <span class="spacing-label">行距</span>
+          <input type="number" class="field-line-spacing" value="1.3" min="0.1" max="10" step="0.1" />      </div>
       <div class="color-row">
         <button type="button" class="color-btn-black active" data-color="#111111">黑</button>
         <button type="button" class="color-btn-red" data-color="#d1242f">红</button>
@@ -852,10 +910,15 @@
           <option value="sys">思源宋</option>
           <option value="syh">思源黑</option>
           <option value="sxt">手写体</option>
+          <option value="fbzd">飞波正点</option>
+          <option value="hot">海鸥体</option>
+          <option value="kkct">可可体</option>
+          <option value="yfxy">余繁新语</option>
+          <option value="lhls">临海隶属</option>
         </select>
-        <input type="number" class="field-size" value="20" min="12" max="60" step="2" />          <span class="spacing-label">字距</span>
-          <input type="number" class="field-spacing" value="0" min="-5" max="30" step="1" />          <span class="spacing-label">行距</span>
-          <input type="number" class="field-line-spacing" value="1.3" min="0.5" max="5" step="0.1" />      </div>
+        <input type="number" class="field-size" value="20" min="1" max="200" step="1" />          <span class="spacing-label">字距</span>
+          <input type="number" class="field-spacing" value="0" min="-100" max="100" step="1" />          <span class="spacing-label">行距</span>
+          <input type="number" class="field-line-spacing" value="1.3" min="0.1" max="10" step="0.1" />      </div>
       <div class="color-row">
         <button type="button" class="color-btn-black active" data-color="#111111">黑</button>
         <button type="button" class="color-btn-red" data-color="#d1242f">红</button>
@@ -884,6 +947,26 @@
       </div>
       <button type="button" class="preview-btn">预览</button>
       <div class="field-status"></div>
+    </div>
+  </div>
+
+  <!-- 发布弹窗 -->
+  <div id="publishModal" class="overlay" role="dialog" aria-modal="true">
+    <div class="overlay-card publish-modal-card">
+      <div class="overlay-title">发布模板</div>
+      <div class="modal-field">
+        <label>模板名称</label>
+        <input type="text" id="modalTplName" placeholder="请输入模板名称" />
+      </div>
+      <div class="modal-field">
+        <label>分类</label>
+        <select id="modalTplType"><option value="">加载中…</option></select>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn-cancel"  id="modalCancelBtn">取消</button>
+        <button type="button" class="modal-btn-save-as" id="modalSaveAsBtn">另存为</button>
+        <button type="button" class="modal-btn-confirm" id="modalConfirmBtn">确定</button>
+      </div>
     </div>
   </div>
 
@@ -1067,83 +1150,194 @@
       return cv;
     }
 
-    // ── 发布按钮 ─────────────────────────────────────────────────
-    document.getElementById('publishBtn').addEventListener('click', async () => {
-      const params = new URLSearchParams(window.location.search);
-      const templateId = params.get('template_id') || '';
-      const tplName = document.getElementById('tmplName').value.trim();
+    // ── 发布弹窗 ─────────────────────────────────────────────────
+    (function () {
+      const _params      = new URLSearchParams(window.location.search);
+      const urlTemplateId = _params.get('template_id') || '';
+      const isEditing    = !!urlTemplateId;
 
-      // 收集每个 field-card 的设置（含输入文字）
-      const layers = {};
-      document.querySelectorAll('.field-card').forEach(card => {
-        const lid = card.dataset.layer;
-        if (!lid) return;
-        layers[lid] = {
-          text:        card.querySelector('.field-input')?.value          ?? null,
-          font:        card.querySelector('.field-font')?.value         ?? null,
-          size:        card.querySelector('.field-size')?.value         ?? null,
-          spacing:     card.querySelector('.field-spacing')?.value      ?? null,
-          lineSpacing: card.querySelector('.field-line-spacing')?.value ?? null,
-          x:           card.querySelector('.field-x')?.value            ?? null,
-          y:           card.querySelector('.field-y')?.value            ?? null,
-          w:           card.querySelector('.field-w')?.value            ?? null,
-          h:           card.querySelector('.field-h')?.value            ?? null,
-          alignH:      card.querySelector('.field-align-h')?.value      ?? null,
-          alignV:      card.querySelector('.field-align-v')?.value      ?? null,
-          color:       card.querySelector('.color-row button.active')?.dataset.color   ?? null,
-          bgColor:     card.querySelector('.bgc-row button.active')?.dataset.bgc       ?? null,
-          dir:         card.querySelector('.dir-row button.active')?.dataset.dir       ?? null,
-          rotate:      card.querySelector('.field-rotate')?.value       ?? null,
-          strokeW:     card.querySelector('.field-stroke-w')?.value     ?? null,
-          strokeC:     card.querySelector('.field-stroke-c')?.value     ?? null,
-          radius:      card.querySelector('.field-radius')?.value       ?? null,
-          dateFmt:     card.querySelector('.field-date-fmt')?.value     ?? null,
-          minLen:      card.querySelector('.field-min-len')?.value      ?? null,
-          maxLen:      card.querySelector('.field-max-len')?.value      ?? null,
-        };
-      });
+      const modal           = document.getElementById('publishModal');
+      const modalTplName    = document.getElementById('modalTplName');
+      const modalTplType    = document.getElementById('modalTplType');
+      const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+      const modalSaveAsBtn  = document.getElementById('modalSaveAsBtn');
+      const modalCancelBtn  = document.getElementById('modalCancelBtn');
 
-      const btn = document.getElementById('publishBtn');
-      btn.disabled = true;
-      btn.textContent = '合成中…';
+      // 新建模板时隐藏"另存为"
+      if (!isEditing) modalSaveAsBtn.style.display = 'none';
 
-      const fd = new FormData();
-      fd.append('action', 'save_config');
-      fd.append('template_id', templateId);
-      fd.append('tpl_name', tplName);
-      fd.append('config', JSON.stringify(layers));
-
-      // 如果用户换过背景图，将新背景文件一并上传
-      const bgFile = document.getElementById('bgFileInput').files[0];
-      if (bgFile) fd.append('bg', bgFile, bgFile.name);
-
-      // 用 Canvas API 自绘缩略图（精确还原排版，不依赖 html2canvas）
-      try {
-        const cv = await buildThumbCanvas();
-        const thumbBlob = await new Promise(resolve => cv.toBlob(resolve, 'image/png'));
-        if (thumbBlob) fd.append('thumb', thumbBlob, 'thumb.png');
-      } catch (e) {
-        console.warn('合成缩略图失败，将仅保存配置：', e);
+      // 懒加载分类列表
+      let _typesLoaded = false;
+      async function loadTypes() {
+        if (_typesLoaded) return;
+        try {
+          const resp = await fetch('../template.php?action=list_types');
+          const json = await resp.json();
+          if (json.ok && json.types) {
+            modalTplType.innerHTML = '';
+            json.types.forEach(t => {
+              const opt = document.createElement('option');
+              opt.value = t.id;
+              opt.textContent = t.name;
+              modalTplType.appendChild(opt);
+            });
+            _typesLoaded = true;
+          }
+        } catch (e) {}
       }
 
-      btn.textContent = '发布中…';
-      try {
-        const resp = await fetch('../template.php', { method: 'POST', body: fd });
-        const json = await resp.json();
-        if (json.ok) {
-          btn.textContent = '✓ 已发布';
+      // 点击发布按钮：打开弹窗
+      document.getElementById('publishBtn').addEventListener('click', async () => {
+        modalTplName.value = document.getElementById('tmplName').value.trim();
+        await loadTypes();
+        if (window._currentTypeId) modalTplType.value = window._currentTypeId;
+        modal.classList.add('show');
+      });
+
+      // 关闭弹窗
+      modalCancelBtn.addEventListener('click', () => modal.classList.remove('show'));
+      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('show'); });
+
+      // 收集所有层配置
+      function collectLayers() {
+        const layers = {};
+        document.querySelectorAll('.field-card').forEach(card => {
+          const lid = card.dataset.layer;
+          if (!lid) return;
+          layers[lid] = {
+            text:        card.querySelector('.field-input')?.value          ?? null,
+            font:        card.querySelector('.field-font')?.value           ?? null,
+            size:        card.querySelector('.field-size')?.value           ?? null,
+            spacing:     card.querySelector('.field-spacing')?.value        ?? null,
+            lineSpacing: card.querySelector('.field-line-spacing')?.value   ?? null,
+            x:           card.querySelector('.field-x')?.value              ?? null,
+            y:           card.querySelector('.field-y')?.value              ?? null,
+            w:           card.querySelector('.field-w')?.value              ?? null,
+            h:           card.querySelector('.field-h')?.value              ?? null,
+            alignH:      card.querySelector('.field-align-h')?.value        ?? null,
+            alignV:      card.querySelector('.field-align-v')?.value        ?? null,
+            color:       card.querySelector('.color-row button.active')?.dataset.color ?? null,
+            bgColor:     card.querySelector('.bgc-row button.active')?.dataset.bgc    ?? null,
+            dir:         card.querySelector('.dir-row button.active')?.dataset.dir    ?? null,
+            rotate:      card.querySelector('.field-rotate')?.value         ?? null,
+            strokeW:     card.querySelector('.field-stroke-w')?.value       ?? null,
+            strokeC:     card.querySelector('.field-stroke-c')?.value       ?? null,
+            radius:      card.querySelector('.field-radius')?.value         ?? null,
+            dateFmt:     card.querySelector('.field-date-fmt')?.value       ?? null,
+            minLen:      card.querySelector('.field-min-len')?.value        ?? null,
+            maxLen:      card.querySelector('.field-max-len')?.value        ?? null,
+          };
+        });
+        return layers;
+      }
+
+      // 核心保存逻辑，返回 true 表示成功
+      async function doSaveConfig(templateId, tplName, typeId, layers, sourceTemplateId) {
+        const btn = document.getElementById('publishBtn');
+        btn.disabled = true;
+        btn.textContent = '合成中…';
+
+        const fd = new FormData();
+        fd.append('action', 'save_config');
+        fd.append('template_id', templateId);
+        fd.append('tpl_name', tplName);
+        fd.append('type_id', typeId);
+        fd.append('config', JSON.stringify(layers));
+        if (sourceTemplateId) fd.append('source_template_id', sourceTemplateId);
+
+        const bgFile = document.getElementById('bgFileInput').files[0];
+        if (bgFile) fd.append('bg', bgFile, bgFile.name);
+
+        try {
+          const cv = await buildThumbCanvas();
+          const thumbBlob = await new Promise(resolve => cv.toBlob(resolve, 'image/png'));
+          if (thumbBlob) fd.append('thumb', thumbBlob, 'thumb.png');
+        } catch (e) {
+          console.warn('合成缩略图失败，将仅保存配置：', e);
+        }
+
+        btn.textContent = '发布中…';
+        try {
+          const resp = await fetch('../template.php', { method: 'POST', body: fd });
+          const json = await resp.json();
+          if (json.ok) {
+            btn.textContent = '✓ 已发布';
+            return true;
+          } else {
+            alert('发布失败：' + (json.error || '未知错误'));
+            btn.textContent = '发布';
+            btn.disabled = false;
+            return false;
+          }
+        } catch (e) {
+          alert('网络错误：' + e.message);
+          btn.textContent = '发布';
+          btn.disabled = false;
+          return false;
+        }
+      }
+
+      // 确定：保存/更新当前模板
+      modalConfirmBtn.addEventListener('click', async () => {
+        const tplName = modalTplName.value.trim();
+        const typeId  = modalTplType.value;
+        if (!tplName) { alert('请填写模板名称'); return; }
+        if (!typeId)  { alert('请选择分类'); return; }
+        document.getElementById('tmplName').value = tplName;
+        modal.classList.remove('show');
+        const ok = await doSaveConfig(urlTemplateId, tplName, typeId, collectLayers());
+        if (ok) {
+          const btn = document.getElementById('publishBtn');
           setTimeout(() => { btn.textContent = '发布'; btn.disabled = false; }, 1500);
-        } else {
-          alert('发布失败：' + (json.error || '未知错误'));
+        }
+      });
+
+      // 另存为：创建新模板后保存，跳转到新页面
+      modalSaveAsBtn.addEventListener('click', async () => {
+        const tplName = modalTplName.value.trim();
+        const typeId  = modalTplType.value;
+        if (!tplName) { alert('请填写模板名称'); return; }
+        if (!typeId)  { alert('请选择分类'); return; }
+        modal.classList.remove('show');
+
+        const btn = document.getElementById('publishBtn');
+        btn.disabled = true;
+        btn.textContent = '创建中…';
+        try {
+          const cfd = new FormData();
+          cfd.append('action', 'create_template');
+          cfd.append('type_id', typeId);
+          cfd.append('name', tplName);
+          const cResp = await fetch('../template.php', { method: 'POST', body: cfd });
+          const cJson = await cResp.json();
+          if (!cJson.ok) {
+            alert('创建失败：' + (cJson.error || '未知错误'));
+            btn.textContent = '发布';
+            btn.disabled = false;
+            return;
+          }
+          const newId = cJson.id;
+          document.getElementById('tmplName').value = tplName;
+          const ok = await doSaveConfig(String(newId), tplName, typeId, collectLayers(), urlTemplateId);
+          if (ok) {
+            // 跳转时带上 bg 参数，让新页面能直接显示背景图
+            const previewSrc = document.getElementById('preview').src;
+            let bgParam = '';
+            try {
+              const previewUrl = new URL(previewSrc);
+              // bg 路径形如 template/{id}/bg.xxx，相对于 dl/
+              const match = previewUrl.pathname.match(/template\/\d+\/bg\.\w+/);
+              if (match) bgParam = '&bg=' + encodeURIComponent(match[0]);
+            } catch (e) {}
+            setTimeout(() => { location.href = location.pathname + '?template_id=' + newId + bgParam; }, 800);
+          }
+        } catch (e) {
+          alert('网络错误：' + e.message);
           btn.textContent = '发布';
           btn.disabled = false;
         }
-      } catch (e) {
-        alert('网络错误：' + e.message);
-        btn.textContent = '发布';
-        btn.disabled = false;
-      }
-    });
+      });
+    })();
 
     // 繁体字体列表：这些字体只含繁体字形，输入简体需自动转换
     const TRADITIONAL_FONTS = new Set(['bfs', 'MasaFont-Bold', 'SotyrFangsong-Regular']);
@@ -1485,6 +1679,7 @@
         if (!json.ok || !json.config) return;
         cfg = JSON.parse(json.config);
         tplName = json.tpl_name || '';
+        window._currentTypeId = json.type_id || 0;
       } catch (e) { return; }
 
       // 模板名称

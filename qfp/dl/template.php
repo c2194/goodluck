@@ -56,6 +56,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'list') 
     exit;
 }
 
+// ── AJAX GET: 列出模板分类 ────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'list_types') {
+    header('Content-Type: application/json; charset=utf-8');
+    $rows = $pdo->query("SELECT id, name FROM template_types ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
+    echo json_encode(['ok' => true, 'types' => $rows]);
+    exit;
+}
+
 // ── AJAX GET: 读取模板配置 ────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'get_config') {
     header('Content-Type: application/json; charset=utf-8');
@@ -63,13 +71,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'get_con
     if ($templateId <= 0) {
         echo json_encode(['ok' => false, 'error' => '参数错误']); exit;
     }
-    $stmt = $pdo->prepare('SELECT config, tpl_name FROM templates WHERE id = ?');
+    $stmt = $pdo->prepare('SELECT config, tpl_name, type_id FROM templates WHERE id = ?');
     $stmt->execute([$templateId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
         echo json_encode(['ok' => false, 'error' => '模板不存在']); exit;
     }
-    echo json_encode(['ok' => true, 'config' => $row['config'], 'tpl_name' => $row['tpl_name'] ?? '']);
+    echo json_encode(['ok' => true, 'config' => $row['config'], 'tpl_name' => $row['tpl_name'] ?? '', 'type_id' => (int)($row['type_id'] ?? 0)]);
     exit;
 }
 
@@ -191,9 +199,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ── AJAX: 保存模板配置 ────────────────────────────────────────
     if ($action === 'save_config') {
         header('Content-Type: application/json; charset=utf-8');
-        $templateId = (int) ($_POST['template_id'] ?? 0);
-        $tplName    = trim((string) ($_POST['tpl_name'] ?? ''));
-        $config     = (string) ($_POST['config'] ?? '');
+        $templateId      = (int) ($_POST['template_id']      ?? 0);
+        $tplName         = trim((string) ($_POST['tpl_name']  ?? ''));
+        $config          = (string) ($_POST['config']         ?? '');
+        $typeId          = (int) ($_POST['type_id']           ?? 0);
+        $srcTemplateId   = (int) ($_POST['source_template_id'] ?? 0);
         if ($templateId <= 0) {
             echo json_encode(['ok' => false, 'error' => '参数错误']); exit;
         }
@@ -227,6 +237,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
+        // 没有上传新背景图时，尝试从源模板复制
+        if ($bgRel === '' && $srcTemplateId > 0 && $srcTemplateId !== $templateId) {
+            $srcStmt = $pdo->prepare('SELECT bg_img FROM templates WHERE id = ?');
+            $srcStmt->execute([$srcTemplateId]);
+            $srcRow = $srcStmt->fetch(PDO::FETCH_ASSOC);
+            $srcBg  = trim((string)($srcRow['bg_img'] ?? ''));
+            if ($srcBg !== '') {
+                $srcPath = __DIR__ . '/' . $srcBg;
+                if (is_file($srcPath)) {
+                    $ext = pathinfo($srcBg, PATHINFO_EXTENSION);
+                    $dir = __DIR__ . '/template/' . $templateId . '/';
+                    if (!is_dir($dir)) @mkdir($dir, 0750, true);
+                    $destFilename = 'bg.' . $ext;
+                    if (copy($srcPath, $dir . $destFilename)) {
+                        $bgRel = 'template/' . $templateId . '/' . $destFilename;
+                        $updBg = $pdo->prepare('UPDATE templates SET bg_img = ? WHERE id = ?');
+                        $updBg->execute([$bgRel, $templateId]);
+                    }
+                }
+            }
+        }
         // 可选：保存合成缩略图
         $thumbRel  = '';
         $thumbFile = $_FILES['thumb'] ?? null;
@@ -237,9 +268,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $thumbRel = 'template/' . $templateId . '/thumb.png';
             }
         }
-        if ($thumbRel !== '') {
+        if ($thumbRel !== '' && $typeId > 0) {
+            $upd = $pdo->prepare('UPDATE templates SET config = ?, tpl_name = ?, thumb_img = ?, type_id = ? WHERE id = ?');
+            $upd->execute([$config, $tplName, $thumbRel, $typeId, $templateId]);
+        } elseif ($thumbRel !== '') {
             $upd = $pdo->prepare('UPDATE templates SET config = ?, tpl_name = ?, thumb_img = ? WHERE id = ?');
             $upd->execute([$config, $tplName, $thumbRel, $templateId]);
+        } elseif ($typeId > 0) {
+            $upd = $pdo->prepare('UPDATE templates SET config = ?, tpl_name = ?, type_id = ? WHERE id = ?');
+            $upd->execute([$config, $tplName, $typeId, $templateId]);
         } else {
             $upd = $pdo->prepare('UPDATE templates SET config = ?, tpl_name = ? WHERE id = ?');
             $upd->execute([$config, $tplName, $templateId]);
