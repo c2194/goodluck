@@ -22,29 +22,85 @@
     }
     .wrap { padding: 12px; max-width: 920px; margin: 0 auto; }
 
-    /* 顶部操作栏 */
-    .action-bar {
-      display: flex;
+    /* 预览下方图片工具栏 */
+    .photo-toolbar {
+      display: grid;
+      grid-template-columns: 1.25fr repeat(4, minmax(0, 1fr));
       gap: 8px;
-      margin-bottom: 10px;
+      margin-top: 10px;
+      margin-bottom: 4px;
     }
-    .action-bar button {
-      flex: 1;
+    .photo-toolbar button {
+      min-width: 0;
       padding: 10px 0;
       border: 1px solid var(--border);
       border-radius: 10px;
       background: var(--panel);
       color: var(--text);
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
     }
-    .action-bar button.primary {
-      background: var(--btn);
-      border-color: var(--btn);
+    .photo-toolbar button:disabled { opacity: .5; cursor: default; }
+    .photo-toolbar .filter-btn.active {
+      background: #d1242f;
+      border-color: #d1242f;
       color: #fff;
     }
-    .action-bar button:disabled { opacity: .5; cursor: default; }
+    .photo-toolbar #btnShowOriginal:active {
+      background: #374151;
+      border-color: #6b7280;
+      color: #fff;
+    }
+    .tune-panel {
+      display: none;
+      margin: 8px 0 12px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+    .tune-title {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .tune-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .tune-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .tune-item input {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 7px 8px;
+      font-size: 13px;
+      outline: none;
+    }
+    .tune-tip {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    @media (max-width: 680px) {
+      .tune-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 520px) {
+      .photo-toolbar button {
+        padding: 9px 0;
+        font-size: 12px;
+      }
+    }
 
     /* 预览框 */
     .frame {
@@ -171,6 +227,36 @@
       margin-top: 6px;
       text-align: center;
     }
+    .generated-preview {
+      display: none;
+      margin-top: 12px;
+      padding: 10px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .generated-preview.show { display: block; }
+    .generated-preview-title {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .generated-preview img {
+      width: 100%;
+      max-width: 270px;
+      aspect-ratio: 540 / 800;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .preview-stack {
+      display: grid;
+      gap: 12px;
+      margin-top: 12px;
+    }
 
     /* 录音 */
     .record-section {
@@ -266,10 +352,6 @@
 <body>
 
   <div class="wrap">
-    <!-- 顶部按钮：选择照片 -->
-    <div class="action-bar">
-      <button id="btnPickPhoto">选择照片</button>
-    </div>
     <input type="file" id="filePhoto" accept="image/*" style="display:none" />
 
     <!-- 预览框 -->
@@ -279,7 +361,7 @@
           <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
           <polyline points="21 15 16 10 5 21"/>
         </svg>
-        <span>点击上方按钮选择照片</span>
+        <span>点击下方按钮选择照片</span>
       </div>
       <div id="photoContainer">
         <img id="photoImg" alt="" style="display:none" />
@@ -288,11 +370,66 @@
       <!-- 文字层由 JS 动态插入 -->
     </div>
 
+    <div class="photo-toolbar">
+      <button id="btnPickPhoto" type="button">选择图片</button>
+      <button id="btnShowOriginal" type="button">原图</button>
+      <button type="button" class="filter-btn" data-filter="red">红</button>
+      <button type="button" class="filter-btn" data-filter="bw">黑白</button>
+      <button type="button" class="filter-btn active" data-filter="bwred">黑白红</button>
+    </div>
+    <div class="tune-panel" id="redTunePanel">
+      <div class="tune-title">红色临时调参：改完会立即刷新当前红色效果，刷新页面后恢复默认</div>
+      <div class="tune-grid">
+        <label class="tune-item">对比
+          <input id="redContrast" type="number" step="0.05" value="1.25" />
+        </label>
+        <label class="tune-item">曲线γ
+          <input id="redGamma" type="number" step="0.05" value="0.85" />
+        </label>
+        <label class="tune-item">暗红R
+          <input id="redBaseR" type="number" min="0" max="255" step="1" value="138" />
+        </label>
+        <label class="tune-item">暗红G
+          <input id="redBaseG" type="number" min="0" max="255" step="1" value="15" />
+        </label>
+        <label class="tune-item">暗红B
+          <input id="redBaseB" type="number" min="0" max="255" step="1" value="24" />
+        </label>
+      </div>
+      <div class="tune-tip">建议先调“对比”和“曲线γ”，再细调 RGB。</div>
+    </div>
+
     <!-- 动态字段卡 -->
     <div id="fieldsArea"></div>
 
     <button type="button" class="btn-generate" id="btnGenerate" disabled>生成祝福牌</button>
     <div class="field-status" id="genStatus"></div>
+    <div class="preview-stack">
+      <div class="generated-preview" id="generatedPreviewBox">
+        <div class="generated-preview-title">合成后的图片预览</div>
+        <img id="generatedPreviewImg" alt="合成预览图" />
+      </div>
+      <div class="generated-preview" id="photoOnlyPreviewBox">
+        <div class="generated-preview-title">仅照片预览（无文字、无遮罩）</div>
+        <img id="photoOnlyPreviewImg" alt="仅照片预览图" />
+      </div>
+      <div class="generated-preview" id="overlayOnlyPreviewBox">
+        <div class="generated-preview-title">仅遮罩层和文字层预览（透明 PNG）</div>
+        <img id="overlayOnlyPreviewImg" alt="仅遮罩和文字预览图" />
+      </div>
+      <div class="generated-preview" id="ditheredPreviewBox">
+        <div class="generated-preview-title">抖动处理后的照片（270×400 三色）</div>
+        <canvas id="ditheredPreviewCanvas" width="270" height="400" style="max-width:100%;image-rendering:pixelated;"></canvas>
+      </div>
+      <div class="generated-preview" id="overlayScaledPreviewBox">
+        <div class="generated-preview-title">遮罩层+文字层缩放（270×400 透明）</div>
+        <canvas id="overlayScaledCanvas" width="270" height="400" style="max-width:100%;"></canvas>
+      </div>
+      <div class="generated-preview" id="compositeSmallPreviewBox">
+        <div class="generated-preview-title">最终合成（抖动照片 + 遮罩文字 270×400）</div>
+        <canvas id="compositeSmallCanvas" width="270" height="400" style="width:60%;display:block;margin:0 auto;image-rendering:pixelated;"></canvas>
+      </div>
+    </div>
 
     <!-- 录音 -->
     <div class="record-section" style="display:none;">
@@ -333,9 +470,22 @@
     </div>
   </div>
 
+  <script src="../../tricolor.js"></script>
   <script>
     const FONT_API = '../../font/dfont.php';
     const loadingOverlay = document.getElementById('loadingOverlay');
+    const generatedPreviewBox = document.getElementById('generatedPreviewBox');
+    const generatedPreviewImg = document.getElementById('generatedPreviewImg');
+    const photoOnlyPreviewBox = document.getElementById('photoOnlyPreviewBox');
+    const photoOnlyPreviewImg = document.getElementById('photoOnlyPreviewImg');
+    const overlayOnlyPreviewBox = document.getElementById('overlayOnlyPreviewBox');
+    const overlayOnlyPreviewImg = document.getElementById('overlayOnlyPreviewImg');
+    const ditheredPreviewBox = document.getElementById('ditheredPreviewBox');
+    const ditheredPreviewCanvas = document.getElementById('ditheredPreviewCanvas');
+    const overlayScaledPreviewBox = document.getElementById('overlayScaledPreviewBox');
+    const overlayScaledCanvas = document.getElementById('overlayScaledCanvas');
+    const compositeSmallPreviewBox = document.getElementById('compositeSmallPreviewBox');
+    const compositeSmallCanvas = document.getElementById('compositeSmallCanvas');
 
     // ── URL 参数 ──────────────────────────────────────────────
     const urlParams  = new URLSearchParams(window.location.search);
@@ -345,8 +495,26 @@
     let templateConfig = null;   // 完整 config JSON
     let zoneConfigs    = [];     // config.zones[]
 
-    // ── 字体缓存 ──────────────────────────────────────────────
+    // ── 字体缓存 / 照片状态 ───────────────────────────────────
     const loadedFonts = {};
+    let sourcePhotoDataUrl = '';
+    let currentPhotoFilter = 'bwred';
+    let lastGeneratedImageBlob = null;
+
+    function clamp(n, min, max) {
+      n = Number(n);
+      if (!Number.isFinite(n)) return min;
+      return Math.max(min, Math.min(max, n));
+    }
+    function getRedTuneSettings() {
+      return {
+        contrast: clamp(document.getElementById('redContrast').value, 0.4, 3),
+        gamma: clamp(document.getElementById('redGamma').value, 0.3, 2),
+        baseR: clamp(document.getElementById('redBaseR').value, 0, 255),
+        baseG: clamp(document.getElementById('redBaseG').value, 0, 255),
+        baseB: clamp(document.getElementById('redBaseB').value, 0, 255)
+      };
+    }
 
     // ── 日期格式化（与 pic_create.html 一致）─────────────────
     const CN_DIGITS = ['零','一','二','三','四','五','六','七','八','九'];
@@ -529,18 +697,114 @@
       pc.style.height = ((sample.h || 400) / 400 * 100) + '%';
     }
 
-    // ── 选择照片 ──────────────────────────────────────────────
+    // ── 选择照片 + 滤镜 ──────────────────────────────────────
     const filePhoto = document.getElementById('filePhoto');
-    document.getElementById('btnPickPhoto').addEventListener('click', () => filePhoto.click());
-    filePhoto.addEventListener('change', function () {
-      const file = this.files[0];
-      if (!file) return;
-      const url = URL.createObjectURL(file);
-      const photoImg = document.getElementById('photoImg');
-      photoImg.onload = () => URL.revokeObjectURL(url);
+    const photoImg = document.getElementById('photoImg');
+
+    function setActiveFilter(filter) {
+      if (filter !== 'original') currentPhotoFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === currentPhotoFilter);
+      });
+    }
+
+    function showPhoto(url) {
       photoImg.src = url;
       photoImg.style.display = 'block';
       document.getElementById('photoPlaceholder').style.display = 'none';
+      lastGeneratedImageBlob = null;
+    }
+
+    function renderPhotoByFilter(filter) {
+      setActiveFilter(filter);
+      if (!sourcePhotoDataUrl) return;
+
+      if (filter === 'original') {
+        showPhoto(sourcePhotoDataUrl);
+        return;
+      }
+
+      const tune = getRedTuneSettings();
+      const tmpImg = new Image();
+      tmpImg.onload = function () {
+        const cv = document.createElement('canvas');
+        cv.width = tmpImg.naturalWidth;
+        cv.height = tmpImg.naturalHeight;
+        const ctx = cv.getContext('2d');
+        ctx.drawImage(tmpImg, 0, 0);
+        const imageData = ctx.getImageData(0, 0, cv.width, cv.height);
+        const d = imageData.data;
+        const src = new Uint8ClampedArray(d);
+
+        for (let i = 0; i < d.length; i += 4) {
+          const r = src[i], g = src[i + 1], b = src[i + 2];
+          let v = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
+          v = clamp((v - 128) * tune.contrast + 128, 0, 255);
+
+          if (filter === 'red') {
+            const t = Math.pow(v / 255, tune.gamma);
+            d[i]     = Math.round(tune.baseR + (255 - tune.baseR) * t);
+            d[i + 1] = Math.round(tune.baseG + (255 - tune.baseG) * t);
+            d[i + 2] = Math.round(tune.baseB + (255 - tune.baseB) * t);
+          } else if (filter === 'bw') {
+            d[i] = d[i + 1] = d[i + 2] = v;
+          } else if (filter === 'bwred') {
+            let nr = v, ng = v, nb = v;
+            const t = Math.pow(v / 255, tune.gamma);
+            const mappedR = Math.round(tune.baseR + (255 - tune.baseR) * t);
+            const mappedG = Math.round(tune.baseG + (255 - tune.baseG) * t);
+            const mappedB = Math.round(tune.baseB + (255 - tune.baseB) * t);
+            const redDominance = Math.max(0, r - Math.max(g, b));
+            const saturation = Math.max(r, g, b) - Math.min(r, g, b);
+            const weight = Math.min(1, Math.max(0, (redDominance - 10) / 110)) * Math.min(1, (saturation + 20) / 140);
+            if (weight > 0) {
+              nr = Math.round(v * (1 - weight) + mappedR * weight);
+              ng = Math.round(v * (1 - weight) + mappedG * weight);
+              nb = Math.round(v * (1 - weight) + mappedB * weight);
+            }
+            d[i] = nr;
+            d[i + 1] = ng;
+            d[i + 2] = nb;
+          }
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+        showPhoto(cv.toDataURL('image/png'));
+      };
+      tmpImg.src = sourcePhotoDataUrl;
+    }
+
+    document.getElementById('btnPickPhoto').addEventListener('click', () => filePhoto.click());
+    const btnShowOriginal = document.getElementById('btnShowOriginal');
+    btnShowOriginal.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      if (sourcePhotoDataUrl) renderPhotoByFilter('original');
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(evt => {
+      btnShowOriginal.addEventListener(evt, () => {
+        if (sourcePhotoDataUrl) renderPhotoByFilter(currentPhotoFilter);
+      });
+    });
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => renderPhotoByFilter(btn.dataset.filter));
+    });
+    document.querySelectorAll('#redTunePanel input').forEach(input => {
+      input.addEventListener('input', () => {
+        if (sourcePhotoDataUrl && (currentPhotoFilter === 'red' || currentPhotoFilter === 'bwred')) {
+          renderPhotoByFilter(currentPhotoFilter);
+        }
+      });
+    });
+    filePhoto.addEventListener('change', function () {
+      const file = this.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        sourcePhotoDataUrl = e.target.result;
+        setActiveFilter('bwred');
+        renderPhotoByFilter(currentPhotoFilter || 'bwred');
+      };
+      reader.readAsDataURL(file);
     });
 
     // ── 生成祝福牌 ────────────────────────────────────────────
@@ -553,6 +817,12 @@
       loadingOverlay.classList.add('show');
 
       try {
+        if (!sourcePhotoDataUrl) {
+          genStatus.textContent = '请先选择照片';
+          genStatus.style.color = '#f85149';
+          return;
+        }
+
         for (const zi of zoneInputs) {
           const { layerEl, zoneData: z } = zi;
           let text = '';
@@ -587,9 +857,49 @@
           if (familyKey && familyKey !== 'inherit') layerEl.style.fontFamily = familyKey;
         }
 
+        lastGeneratedImageBlob = await buildImageBlob();
+        const photoOnlyBlob = await buildPhotoOnlyBlob();
+        const overlayOnlyBlob = await buildOverlayOnlyBlob();
+        generatedPreviewImg.src = URL.createObjectURL(lastGeneratedImageBlob);
+        photoOnlyPreviewImg.src = URL.createObjectURL(photoOnlyBlob);
+        overlayOnlyPreviewImg.src = URL.createObjectURL(overlayOnlyBlob);
+
+        // 抖动处理：将照片缩小到 270×400 并进行三色抖动
+        const ditheredCanvas = buildDitheredPhotoCanvas();
+        ditheredPreviewCanvas.width = ditheredCanvas.width;
+        ditheredPreviewCanvas.height = ditheredCanvas.height;
+        const dctx = ditheredPreviewCanvas.getContext('2d');
+        dctx.drawImage(ditheredCanvas, 0, 0);
+
+        // 遮罩+文字层缩放到 270×400（保持透明）
+        const overlayImg = new Image();
+        overlayImg.onload = () => {
+          overlayScaledCanvas.width = 270;
+          overlayScaledCanvas.height = 400;
+          const octx = overlayScaledCanvas.getContext('2d');
+          octx.clearRect(0, 0, 270, 400);
+          octx.drawImage(overlayImg, 0, 0, 270, 400);
+          overlayScaledPreviewBox.classList.add('show');
+
+          // 最终合成：抖动照片底层 + 遮罩文字顶层
+          compositeSmallCanvas.width = 270;
+          compositeSmallCanvas.height = 400;
+          const cctx = compositeSmallCanvas.getContext('2d');
+          cctx.drawImage(ditheredCanvas, 0, 0);
+          cctx.drawImage(overlayScaledCanvas, 0, 0);
+          compositeSmallPreviewBox.classList.add('show');
+        };
+        overlayImg.src = URL.createObjectURL(overlayOnlyBlob);
+
+        generatedPreviewBox.classList.add('show');
+        photoOnlyPreviewBox.classList.add('show');
+        overlayOnlyPreviewBox.classList.add('show');
+        ditheredPreviewBox.classList.add('show');
         document.querySelector('.record-section').style.display = '';
         document.querySelector('.send-section').style.display = '';
         btn.textContent = '重新生成';
+        genStatus.textContent = '预览图已生成，可发送祝福';
+        genStatus.style.color = 'var(--muted)';
       } catch (err) {
         genStatus.textContent = '生成失败: ' + err.message;
         genStatus.style.color = '#f85149';
@@ -600,33 +910,57 @@
     });
 
     // ── Canvas 合成（照片 + 遮罩 + 文字层）────────────────────
+    function drawImageCover(ctx, img, dx, dy, dw, dh) {
+      const iw = img.naturalWidth || img.width;
+      const ih = img.naturalHeight || img.height;
+      if (!iw || !ih || !dw || !dh) return;
+
+      const srcRatio = iw / ih;
+      const dstRatio = dw / dh;
+      let sx = 0, sy = 0, sw = iw, sh = ih;
+
+      if (srcRatio > dstRatio) {
+        sw = ih * dstRatio;
+        sx = (iw - sw) / 2;
+      } else {
+        sh = iw / dstRatio;
+        sy = (ih - sh) / 2;
+      }
+
+      ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+    }
+
     function buildOutputCanvas() {
       const frame   = document.getElementById('frame');
       const maskImg = document.getElementById('maskImg');
       const photoImg = document.getElementById('photoImg');
       const FW = 270, FH = 400;
-      const SCALE = 2;
+      const OUTPUT_W = 540, OUTPUT_H = 800;
+      const SCALE = OUTPUT_W / FW;
       const cv = document.createElement('canvas');
-      cv.width  = FW * SCALE;
-      cv.height = FH * SCALE;
+      cv.width  = OUTPUT_W;
+      cv.height = OUTPUT_H;
       const ctx = cv.getContext('2d');
       ctx.scale(SCALE, SCALE);
 
       const frameRect = frame.getBoundingClientRect();
+      const scaleX = FW / frameRect.width;
+      const scaleY = FH / frameRect.height;
+      const geomScale = Math.min(scaleX, scaleY);
 
       // 1. 白底
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, FW, FH);
 
-      // 2. 用户照片（按 photoContainer 位置）
+      // 2. 用户照片（按 photoContainer 位置，使用 cover 裁切）
       if (photoImg.naturalWidth) {
         const pc = document.getElementById('photoContainer');
         const pcr = pc.getBoundingClientRect();
-        const sx = pcr.left - frameRect.left;
-        const sy = pcr.top  - frameRect.top;
-        const sw = pcr.width;
-        const sh = pcr.height;
-        try { ctx.drawImage(photoImg, sx, sy, sw, sh); } catch(_) {}
+        const dx = (pcr.left - frameRect.left) * scaleX;
+        const dy = (pcr.top  - frameRect.top) * scaleY;
+        const dw = pcr.width * scaleX;
+        const dh = pcr.height * scaleY;
+        try { drawImageCover(ctx, photoImg, dx, dy, dw, dh); } catch(_) {}
       }
 
       // 3. 遮罩
@@ -641,10 +975,10 @@
         if (!sp || !sp.textContent.trim()) return;
 
         const lr = layer.getBoundingClientRect();
-        const lx = lr.left - frameRect.left;
-        const ly = lr.top  - frameRect.top;
-        const lw = lr.width;
-        const lh = lr.height;
+        const lx = (lr.left - frameRect.left) * scaleX;
+        const ly = (lr.top  - frameRect.top) * scaleY;
+        const lw = lr.width * scaleX;
+        const lh = lr.height * scaleY;
         const cs = getComputedStyle(layer);
 
         ctx.save();
@@ -664,20 +998,21 @@
         // 背景色
         const bgColor = cs.backgroundColor;
         if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
-          const r = parseFloat(cs.borderRadius) || 0;
+          const r = (parseFloat(cs.borderRadius) || 0) * geomScale;
           ctx.fillStyle = bgColor;
           ctx.beginPath();
           ctx.roundRect ? ctx.roundRect(lx, ly, lw, lh, r) : ctx.rect(lx, ly, lw, lh);
           ctx.fill();
         }
         // clip
+        ctx.beginPath();
         ctx.rect(lx, ly, lw, lh);
         ctx.clip();
         // 逐字绘制
-        const fontSize  = parseFloat(cs.fontSize) || 20;
+        const fontSize  = (parseFloat(cs.fontSize) || 20) * geomScale;
         const color     = cs.color || '#111111';
         const fontFamily = cs.fontFamily || 'sans-serif';
-        const sw2 = parseFloat(cs.webkitTextStrokeWidth) || 0;
+        const sw2 = (parseFloat(cs.webkitTextStrokeWidth) || 0) * geomScale;
         const sc  = cs.webkitTextStrokeColor || '#000000';
         ctx.font = `${fontSize}px ${fontFamily}`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -689,8 +1024,8 @@
           range.setStart(sp.firstChild || sp, i);
           range.setEnd(sp.firstChild || sp, i+1);
           const cr = range.getBoundingClientRect();
-          const cx = cr.left - frameRect.left + cr.width/2;
-          const cy = cr.top  - frameRect.top  + cr.height/2;
+          const cx = (cr.left - frameRect.left + cr.width / 2) * scaleX;
+          const cy = (cr.top  - frameRect.top  + cr.height / 2) * scaleY;
           if (sw2 > 0) {
             ctx.save();
             ctx.strokeStyle = sc; ctx.lineWidth = sw2*2; ctx.lineJoin = 'round';
@@ -703,6 +1038,242 @@
       });
 
       return cv;
+    }
+
+    function buildImageBlob() {
+      return new Promise((resolve, reject) => {
+        try {
+          const sourceCanvas = buildOutputCanvas();
+          const scaledCanvas = document.createElement('canvas');
+          scaledCanvas.width = 540;
+          scaledCanvas.height = 800;
+          const sctx = scaledCanvas.getContext('2d');
+          sctx.drawImage(sourceCanvas, 0, 0, 540, 800);
+          scaledCanvas.toBlob(blob => {
+            if (!blob) {
+              reject(new Error('图片生成失败'));
+              return;
+            }
+            resolve(blob);
+          }, 'image/png');
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
+
+    function buildPhotoOnlyBlob() {
+      return new Promise((resolve, reject) => {
+        try {
+          const FW = 540, FH = 800;
+          const cv = document.createElement('canvas');
+          cv.width = FW;
+          cv.height = FH;
+          const ctx = cv.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, FW, FH);
+
+          if (photoImg.naturalWidth) {
+            const sample = templateConfig?.sample || { x: 0, y: 0, w: 270, h: 400 };
+            const dx = (sample.x || 0) * 2;
+            const dy = (sample.y || 0) * 2;
+            const dw = (sample.w || 270) * 2;
+            const dh = (sample.h || 400) * 2;
+            drawImageCover(ctx, photoImg, dx, dy, dw, dh);
+          }
+
+          cv.toBlob(blob => {
+            if (!blob) {
+              reject(new Error('仅照片图片生成失败'));
+              return;
+            }
+            resolve(blob);
+          }, 'image/png');
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
+
+    function buildOverlayOnlyBlob() {
+      return new Promise((resolve, reject) => {
+        try {
+          const sourceCanvas = buildOutputCanvas();
+          const cv = document.createElement('canvas');
+          cv.width = 540;
+          cv.height = 800;
+          const ctx = cv.getContext('2d');
+
+          // 保持透明背景，只绘制遮罩和文字
+          if (maskImg.naturalWidth) {
+            ctx.drawImage(maskImg, 0, 0, 540, 800);
+          }
+
+          frame.querySelectorAll('.text-layer').forEach(layer => {
+            if (layer.style.display === 'none') return;
+            const sp = layer.firstElementChild;
+            if (!sp || !sp.textContent.trim()) return;
+
+            const frameRect = frame.getBoundingClientRect();
+            const scaleX = 270 / frameRect.width;
+            const scaleY = 400 / frameRect.height;
+            const geomScale = Math.min(scaleX, scaleY);
+            const lr = layer.getBoundingClientRect();
+            const lx = (lr.left - frameRect.left) * scaleX * 2;
+            const ly = (lr.top - frameRect.top) * scaleY * 2;
+            const lw = lr.width * scaleX * 2;
+            const lh = lr.height * scaleY * 2;
+            const cs = getComputedStyle(layer);
+
+            ctx.save();
+            const mat = cs.transform;
+            if (mat && mat !== 'none') {
+              const m = mat.match(/matrix\(([^)]+)\)/);
+              if (m) {
+                const vals = m[1].split(',').map(Number);
+                const angle = Math.atan2(vals[1], vals[0]);
+                if (Math.abs(angle) > 0.001) {
+                  const cx = lx + lw / 2, cy = ly + lh / 2;
+                  ctx.translate(cx, cy);
+                  ctx.rotate(angle);
+                  ctx.translate(-cx, -cy);
+                }
+              }
+            }
+
+            const bgColor = cs.backgroundColor;
+            if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+              const r = (parseFloat(cs.borderRadius) || 0) * geomScale * 2;
+              ctx.fillStyle = bgColor;
+              ctx.beginPath();
+              ctx.roundRect ? ctx.roundRect(lx, ly, lw, lh, r) : ctx.rect(lx, ly, lw, lh);
+              ctx.fill();
+            }
+
+            ctx.beginPath();
+            ctx.rect(lx, ly, lw, lh);
+            ctx.clip();
+
+            const fontSize = (parseFloat(cs.fontSize) || 20) * geomScale * 2;
+            const color = cs.color || '#111111';
+            const fontFamily = cs.fontFamily || 'sans-serif';
+            const sw2 = (parseFloat(cs.webkitTextStrokeWidth) || 0) * geomScale * 2;
+            const sc = cs.webkitTextStrokeColor || '#000000';
+            ctx.font = `${fontSize}px ${fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = color;
+
+            const text = sp.textContent;
+            const range = document.createRange();
+            for (let i = 0; i < text.length; i++) {
+              range.setStart(sp.firstChild || sp, i);
+              range.setEnd(sp.firstChild || sp, i + 1);
+              const cr = range.getBoundingClientRect();
+              const cx = (cr.left - frameRect.left + cr.width / 2) * scaleX * 2;
+              const cy = (cr.top - frameRect.top + cr.height / 2) * scaleY * 2;
+              if (sw2 > 0) {
+                ctx.save();
+                ctx.strokeStyle = sc;
+                ctx.lineWidth = sw2 * 2;
+                ctx.lineJoin = 'round';
+                ctx.strokeText(text[i], cx, cy);
+                ctx.restore();
+              }
+              ctx.fillText(text[i], cx, cy);
+            }
+            ctx.restore();
+          });
+
+          cv.toBlob(blob => {
+            if (!blob) {
+              reject(new Error('仅遮罩和文字图片生成失败'));
+              return;
+            }
+            resolve(blob);
+          }, 'image/png');
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
+
+    // ── 抖动处理（与 index.html 一致）──────────────────────────
+    function buildDitheredPhotoCanvas() {
+      const FW = 270, FH = 400;
+      // 先绘制仅照片内容到 270×400
+      const cv = document.createElement('canvas');
+      cv.width = FW;
+      cv.height = FH;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, FW, FH);
+
+      if (photoImg.naturalWidth) {
+        const sample = templateConfig?.sample || { x: 0, y: 0, w: 270, h: 400 };
+        const dx = sample.x || 0;
+        const dy = sample.y || 0;
+        const dw = sample.w || 270;
+        const dh = sample.h || 400;
+        drawImageCover(ctx, photoImg, dx, dy, dw, dh);
+      }
+
+      // 对当前滤镜效果应用：先渲染滤镜
+      const imgData = ctx.getImageData(0, 0, FW, FH);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        let r = d[i], g = d[i+1], b = d[i+2];
+        if (currentPhotoFilter === 'bw' || currentPhotoFilter === 'bwred') {
+          const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+          if (currentPhotoFilter === 'bwred') {
+            const isRed = (r > 80 && r > g * 1.4 && r > b * 1.4 && (r - Math.max(g, b)) > 30);
+            if (isRed) {
+              let v = gray;
+              v = ((v - 128) * 1.25 + 128);
+              v = 255 * Math.pow(Math.max(0, Math.min(255, v)) / 255, 0.85);
+              v = Math.max(0, Math.min(255, v));
+              const t = v / 255;
+              r = Math.round(138 + (255 - 138) * t);
+              g = Math.round(15 + (255 - 15) * t);
+              b = Math.round(24 + (255 - 24) * t);
+            } else {
+              r = g = b = Math.round(gray);
+            }
+          } else {
+            r = g = b = Math.round(gray);
+          }
+        } else if (currentPhotoFilter === 'red') {
+          const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+          let v = gray;
+          v = ((v - 128) * 1.25 + 128);
+          v = 255 * Math.pow(Math.max(0, Math.min(255, v)) / 255, 0.85);
+          v = Math.max(0, Math.min(255, v));
+          const t = v / 255;
+          r = Math.round(138 + (255 - 138) * t);
+          g = Math.round(15 + (255 - 15) * t);
+          b = Math.round(24 + (255 - 24) * t);
+        }
+        d[i] = r; d[i+1] = g; d[i+2] = b;
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      // 使用 TriColorConverter 进行抖动（参数与 index.html 默认值一致）
+      const converter = new TriColorConverter({
+        bwThreshold: 120,
+        gamma: 0.9,
+        autoLevelsPercent: 1.5,
+        autoLevels: true,
+        satThreshold: 0.4,
+        valThreshold: 0.2,
+        redDelta: 50,
+        hueWidth: 0.06,
+        redDither: true,
+        redThreshold: 100,
+        redBoost: 1.5,
+        serpentine: true,
+      });
+
+      return converter.convert(cv);
     }
 
     // ── 录音 ─────────────────────────────────────────────────
@@ -787,15 +1358,15 @@
       }
       if (!deviceParam) { alert('URL 缺少设备参数，无法发送祝福。'); return false; }
 
-      const sourceCanvas = buildOutputCanvas();
-      const scaledCanvas = document.createElement('canvas');
-      scaledCanvas.width = 270; scaledCanvas.height = 400;
-      scaledCanvas.getContext('2d').drawImage(sourceCanvas, 0, 0, 270, 400);
-      const imageBlob = await new Promise((res, rej) =>
-        scaledCanvas.toBlob(b => b ? res(b) : rej(new Error('图片生成失败')), 'image/png'));
-
+      // 发送最终合成图（抖动照片 + 遮罩文字 270×400）
+      const sendBlob = await new Promise((resolve, reject) => {
+        compositeSmallCanvas.toBlob(blob => {
+          if (!blob) reject(new Error('合成图生成失败'));
+          else resolve(blob);
+        }, 'image/png');
+      });
       const formData = new FormData();
-      formData.append('image', imageBlob, 'capture.png');
+      formData.append('image', sendBlob, 'capture.png');
       if (lastRecordedBlob) formData.append('audio', lastRecordedBlob, 'record.wav');
       formData.append('mode', 'compose');
       const bg = urlParams.get('bg');
