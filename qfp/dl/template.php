@@ -38,18 +38,21 @@ function h(string $v): string {
 // ── AJAX GET: 列出已发布模板 ────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'list') {
     header('Content-Type: application/json; charset=utf-8');
-    $rows = $pdo->query("SELECT id, name, tpl_name, bg_img, top_img, thumb_img FROM templates WHERE config != '' ORDER BY created_at ASC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $pdo->query("SELECT id, name, tpl_name, bg_img, top_img, thumb_img, config FROM templates WHERE config != '' ORDER BY created_at ASC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
     $result = [];
     foreach ($rows as $r) {
         $label = trim((string)($r['tpl_name'] ?? '')) ?: trim((string)($r['name'] ?? ''));
         $thumb = trim((string)($r['thumb_img'] ?? ''));
         if ($thumb === '') $thumb = trim((string)($r['bg_img'] ?? ''));
+        $cfg  = json_decode((string)($r['config'] ?? ''), true);
+        $kind = (string)($cfg['kind'] ?? '');
         $result[] = [
             'id'    => (int)$r['id'],
             'name'  => $label,
             'thumb' => $thumb,
             'bg'    => (string)($r['bg_img'] ?? ''),
             'top'   => (string)($r['top_img'] ?? ''),
+            'kind'  => $kind,
         ];
     }
     echo json_encode($result);
@@ -71,13 +74,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'get_con
     if ($templateId <= 0) {
         echo json_encode(['ok' => false, 'error' => '参数错误']); exit;
     }
-    $stmt = $pdo->prepare('SELECT config, tpl_name, type_id FROM templates WHERE id = ?');
+    $stmt = $pdo->prepare('SELECT config, tpl_name, type_id, bg_img, top_img FROM templates WHERE id = ?');
     $stmt->execute([$templateId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
         echo json_encode(['ok' => false, 'error' => '模板不存在']); exit;
     }
-    echo json_encode(['ok' => true, 'config' => $row['config'], 'tpl_name' => $row['tpl_name'] ?? '', 'type_id' => (int)($row['type_id'] ?? 0)]);
+    echo json_encode(['ok' => true, 'config' => $row['config'], 'tpl_name' => $row['tpl_name'] ?? '', 'type_id' => (int)($row['type_id'] ?? 0), 'bg_img' => $row['bg_img'] ?? '', 'top_img' => $row['top_img'] ?? '']);
     exit;
 }
 
@@ -255,6 +258,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $updBg = $pdo->prepare('UPDATE templates SET bg_img = ? WHERE id = ?');
                         $updBg->execute([$bgRel, $templateId]);
                     }
+                }
+            }
+        }
+        // 可选：保存遮罩图（top_img）
+        $topFile = $_FILES['top'] ?? null;
+        if ($topFile && (int) $topFile['error'] === UPLOAD_ERR_OK) {
+            $mimeMap = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
+            $mime = '';
+            if (class_exists('finfo')) {
+                $fi   = new \finfo(FILEINFO_MIME_TYPE);
+                $mime = (string) $fi->file($topFile['tmp_name']);
+            } elseif (function_exists('mime_content_type')) {
+                $mime = (string) mime_content_type($topFile['tmp_name']);
+            }
+            if (!isset($mimeMap[$mime])) {
+                $extRaw = strtolower(pathinfo((string)($topFile['name'] ?? ''), PATHINFO_EXTENSION));
+                $extMap = ['jpg' => 'jpg', 'jpeg' => 'jpg', 'png' => 'png', 'gif' => 'gif', 'webp' => 'webp'];
+                $ext = $extMap[$extRaw] ?? null;
+            } else {
+                $ext = $mimeMap[$mime];
+            }
+            if ($ext) {
+                $dir = __DIR__ . '/template/' . $templateId . '/';
+                if (!is_dir($dir)) @mkdir($dir, 0750, true);
+                if (move_uploaded_file($topFile['tmp_name'], $dir . 'top.' . $ext)) {
+                    $updTop = $pdo->prepare('UPDATE templates SET top_img = ? WHERE id = ?');
+                    $updTop->execute(['template/' . $templateId . '/top.' . $ext, $templateId]);
                 }
             }
         }
@@ -633,9 +663,15 @@ foreach ($allTemplates as $tpl) {
                         <div class="tpl-grid">
                             <?php foreach ($typeTpls as $tpl): ?>
                                 <?php
+                                $configArr = json_decode((string)($tpl['config'] ?? ''), true);
+                                $isPhoto   = ($configArr['kind'] ?? '') === 'photo';
+                                if ($isPhoto) {
+                                    $tplLink = 'template/pic_create.html?template_id=' . (int)$tpl['id'];
+                                } else {
                                     $tplLink = 'template/create.html?template_id=' . (int)$tpl['id']
                                         . '&bg='  . urlencode((string)($tpl['bg_img']  ?? ''))
                                         . '&top=' . urlencode((string)($tpl['top_img'] ?? ''));
+                                }
                                     $tplLabel = trim((string)($tpl['tpl_name'] ?? '')) ?: trim((string)($tpl['name'] ?? ''));
                                     $isPublished = trim((string)($tpl['config'] ?? '')) !== '';
                                 ?>
@@ -720,6 +756,14 @@ foreach ($allTemplates as $tpl) {
             <div>
                 <label for="ntp-name">模板名称</label>
                 <input id="ntp-name" type="text" placeholder="请输入模板名称" required autocomplete="off">
+            </div>
+            <div style="display:flex;gap:20px;padding:6px 0;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;">
+                    <input type="radio" name="ntp-kind" value="graphic" checked> 图文模板
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;">
+                    <input type="radio" name="ntp-kind" value="photo"> 照片模板
+                </label>
             </div>
             <div id="ntp-err" style="color:#dc2626;font-size:13px;min-height:18px;"></div>
             <button class="btn btn-primary" type="submit" id="ntp-submit">确定</button>
@@ -819,6 +863,7 @@ document.getElementById('form-new-template').addEventListener('submit', async fu
     const name  = document.getElementById('ntp-name').value.trim();
     const errEl = document.getElementById('ntp-err');
     if (!name) { errEl.textContent = '请输入模板名称'; return; }
+    const kind  = document.querySelector('input[name="ntp-kind"]:checked').value; // 'graphic' | 'photo'
     const btn = document.getElementById('ntp-submit');
     btn.disabled = true;
     try {
@@ -830,6 +875,14 @@ document.getElementById('form-new-template').addEventListener('submit', async fu
         const data = await res.json();
         if (!data.ok) { errEl.textContent = data.error || '创建失败'; return; }
         _newTplId    = data.id;
+
+        if (kind === 'photo') {
+            // 照片模板：直接跳转到 pic_create.html
+            location.href = 'template/pic_create.html?template_id=' + _newTplId;
+            return;
+        }
+
+        // 图文模板：走原有上传图片流程
         _uploadedSet = new Set();
         _uploadedPaths = {};
         // 重置上传区

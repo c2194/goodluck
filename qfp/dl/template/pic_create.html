@@ -1,0 +1,1559 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>照片模板编辑</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121826;
+      --text: #e6edf3;
+      --muted: #9aa4b2;
+      --border: rgba(255,255,255,0.10);
+      --btn: #1f6feb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      padding: 12px;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    /* 顶部操作栏 */
+    .action-bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .action-bar button {
+      flex: 1;
+      padding: 10px 0;
+      border: 0;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    #btnMask {
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    #btnMask:hover { background: rgba(255,255,255,0.14); }
+    #btnSample {
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    #btnSample:hover { background: rgba(255,255,255,0.14); }
+    #btnPublish {
+      background: var(--btn);
+      color: #fff;
+    }
+    #btnPublish:disabled { opacity: .5; cursor: default; }
+
+    /* 预览框：与 create.html 完全一致 */
+    .frame {
+      margin-top: 10px;
+      width: 100%;
+      aspect-ratio: 270 / 400;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      position: relative;
+      user-select: none;
+    }
+    /* 示例图容器（最底层，坐标由 xywh 控制）*/
+    #sampleContainer {
+      position: absolute;
+      z-index: 1;
+      overflow: hidden;
+      /* 默认全覆盖，JS 会根据输入覆盖 */
+      left: 0; top: 0; width: 100%; height: 100%;
+    }
+    #imgSample {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    /* 遮罩图（上层，png 透明）*/
+    #imgMask {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      z-index: 2;
+      pointer-events: none;
+    }
+    /* 文字叠层（动态 zone，z-index 介于 mask 和 guideBox 之间）*/
+    .text-layer {
+      position: absolute;
+      z-index: 5;
+      font-size: 28px;
+      line-height: 1.3;
+      white-space: pre-wrap;
+      word-break: break-word;
+      pointer-events: none;
+      display: none;
+      padding: 0;
+      border: 1px dashed rgba(59,130,246,0.7);
+      overflow: hidden;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      paint-order: stroke fill;
+    }
+    /* 参考框：与 sampleContainer 同位，虚线边框，纯透明（最顶层）*/
+    #guideBox {
+      position: absolute;
+      z-index: 10;
+      pointer-events: none;
+      border: 2px dashed rgba(96,165,250,0.75);
+      box-sizing: border-box;
+      /* 初始全覆盖，JS 与 sampleContainer 同步 */
+      left: 0; top: 0; width: 100%; height: 100%;
+    }
+    /* 隐藏虚线：text-layer 边框透明 + guideBox 不可见 */
+    .frame.dashes-hidden .text-layer { border-color: transparent; }
+    .frame.dashes-hidden #guideBox   { visibility: hidden; }
+
+    /* 发布弹窗 */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: none;
+      place-items: center;
+      z-index: 999;
+      padding: 16px;
+    }
+    .overlay.show { display: grid; }
+    .overlay-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      width: min(90vw, 360px);
+      color: var(--text);
+    }
+    .overlay-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+    .modal-field { margin-bottom: 12px; }
+    .modal-field label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .modal-field input, .modal-field select {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 14px;
+      outline: none;
+    }
+    .modal-field input:focus, .modal-field select:focus {
+      border-color: rgba(31,111,235,.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,.2);
+    }
+    .modal-field select option { background: var(--panel); }
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .modal-actions button {
+      flex: 1;
+      padding: 9px 0;
+      border: 0;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .modal-btn-saveas  { background: rgba(255,255,255,0.08); color: var(--text); }
+    .modal-btn-cancel  { background: rgba(255,255,255,0.08); color: var(--text); }
+    .modal-btn-confirm { background: var(--btn); color: #fff; }
+
+    /* jump-bar */
+    .jump-bar {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .jump-bar button {
+      flex: 1;
+      padding: 9px 0;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .jump-bar button:hover {
+      border-color: var(--btn);
+      color: var(--text);
+    }
+    .jump-bar button.active {
+      border-color: var(--btn);
+      color: var(--text);
+      background: rgba(31,111,235,0.12);
+    }
+    /* 虚线按钮固定宽，不参与 flex:1 平分 */
+    #btnDashed { flex: none; padding: 9px 16px; }
+
+    /* field-card（动态文字区）*/
+    .field-card {
+      margin-top: 14px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .zone-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .zone-name {
+      flex: 1;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 600;
+      outline: none;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    .zone-name:focus {
+      background: rgba(255,255,255,0.05);
+      outline: 1px solid var(--border);
+    }
+    .zone-del-btn {
+      flex: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+    .zone-del-btn:hover { background: rgba(220,38,38,0.15); color: #f87171; }
+    .zone-pin-btn {
+      flex: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+    .zone-pin-btn:hover { background: rgba(31,111,235,0.15); color: #60a5fa; }
+    .field-card input[type="text"],
+    .field-card input[type="date"] {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 16px;
+      line-height: 1.3;
+      outline: none;
+      color-scheme: dark;
+    }
+    .field-card input[type="text"]:focus,
+    .field-card input[type="date"]:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .field-card select {
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 6px 8px;
+      font-size: 13px;
+      outline: none;
+    }
+    .field-card select:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .field-card select option { background: #fff; color: #111; }
+    .charlimit-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .charlimit-row input[type="number"] {
+      width: 50px;
+      flex: none;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 5px 7px;
+      font-size: 13px;
+      outline: none;
+    }
+    .align-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .align-row label { font-size: 12px; color: var(--muted); }
+    .settings-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .settings-row select {
+      flex: 1;
+      min-width: 90px;
+    }
+    .settings-row input[type="number"] {
+      width: 52px;
+      flex: none;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 5px 7px;
+      font-size: 13px;
+      outline: none;
+    }
+    .spacing-label { font-size: 12px; color: var(--muted); }
+    .color-row, .bgc-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .color-row button, .bgc-row button {
+      flex: none;
+      padding: 4px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+    .color-row button.active, .bgc-row button.active {
+      border-color: var(--btn);
+      box-shadow: 0 0 0 2px rgba(31,111,235,0.35);
+    }
+    .color-btn-black { background:#111; color:#fff; }
+    .color-btn-red   { background:#d1242f; color:#fff; }
+    .color-btn-white { background:#fff; color:#111; }
+    .bgc-label { font-size:12px; color:var(--muted); }
+    .bgc-btn-none  { background:transparent; color:var(--muted); border-style:dashed !important; }
+    .bgc-btn-black { background:#111; color:#fff; }
+    .bgc-btn-red   { background:#d1242f; color:#fff; }
+    .bgc-btn-white { background:#fff; color:#111; }
+    .dir-row {
+      display: flex;
+      gap: 6px;
+    }
+    .dir-row button {
+      flex: 1;
+      padding: 6px 0;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .dir-row button.active {
+      border-color: var(--btn);
+      color: var(--text);
+      background: rgba(31,111,235,0.12);
+    }
+    .rotate-row, .stroke-row, .radius-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .rotate-row input[type="number"],
+    .stroke-row input[type="number"],
+    .radius-row input[type="number"] {
+      width: 58px;
+      flex: none;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 5px 7px;
+      font-size: 13px;
+      outline: none;
+    }
+    .preview-btn {
+      align-self: flex-start;
+      padding: 7px 16px;
+      border: 0;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .preview-btn:hover { background: rgba(255,255,255,0.14); }
+    .field-status { font-size: 12px; color: var(--muted); min-height: 16px; }
+
+    /* xywh 输入行 */
+    .pos-card {
+      margin-top: 10px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+    .xywh-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .xywh-row label {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .xywh-row input[type="number"] {
+      width: 58px;
+      flex: none;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 6px 8px;
+      font-size: 14px;
+      outline: none;
+    }
+    .xywh-row input[type="number"]:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .xywh-row .row-title {
+      font-size: 12px;
+      color: var(--muted);
+      margin-right: 4px;
+    }
+    .modal-err {
+      color: #dc2626;
+      font-size: 12px;
+      min-height: 16px;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- 顶部 3 个按钮 -->
+    <div class="action-bar">
+      <button id="btnMask">遮罩图片</button>
+      <button id="btnSample">示例图片</button>
+      <button id="btnPublish" disabled>发布</button>
+    </div>
+
+    <!-- 隐藏的文件输入 -->
+    <input type="file" id="fileSample" accept="image/*" style="display:none" />
+    <input type="file" id="fileMask"   accept="image/png" style="display:none" />
+
+    <!-- 预览框 -->
+    <div class="frame" id="frame">
+      <div id="sampleContainer">
+        <img id="imgSample" alt="示例图片" style="display:none" />
+      </div>
+      <img id="imgMask" alt="遮罩图片" style="display:none" />
+      <div id="guideBox"></div>
+    </div>
+
+    <!-- 示例图容器坐标 -->
+    <div class="pos-card">
+      <div class="xywh-row">
+        <span class="row-title">示例图</span>
+        <label>X</label><input type="number" id="inX" value="0"   min="0" max="270" step="1" />
+        <label>Y</label><input type="number" id="inY" value="0"   min="0" max="400" step="1" />
+        <label>W</label><input type="number" id="inW" value="270" min="1" max="270" step="1" />
+        <label>H</label><input type="number" id="inH" value="400" min="1" max="400" step="1" />
+      </div>
+    </div>
+
+    <!-- jump-bar：+ 新增区 / 虚线 切换 -->
+    <div class="jump-bar" id="jumpBar">
+      <button type="button" id="btnAddZone">＋ 新增文字区</button>
+      <button type="button" id="btnAddDate">＋ 新增时间区</button>
+      <button type="button" id="btnDashed">虚线</button>
+    </div>
+
+  </div>
+
+  <!-- 发布弹窗 -->
+  <div class="overlay" id="publishModal">
+    <div class="overlay-card">
+      <div class="overlay-title" id="pubTitle">发布照片模板</div>
+      <div class="modal-field">
+        <label>模板名称</label>
+        <input type="text" id="pubName" placeholder="请输入模板名称" autocomplete="off" />
+      </div>
+      <div class="modal-field">
+        <label>分类</label>
+        <select id="pubType"><option value="">加载中…</option></select>
+      </div>
+      <div class="modal-err" id="pubErr"></div>
+      <div class="modal-actions">
+        <button class="modal-btn-cancel"  id="pubCancel">取消</button>
+        <button class="modal-btn-saveas" id="pubSaveAs" style="display:none">另存为</button>
+        <button class="modal-btn-confirm" id="pubConfirm">确定发布</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params     = new URLSearchParams(location.search);
+    const templateId = params.get('template_id') || '';
+    const isEditing  = !!templateId;
+    // 从 restoreConfig 回填，供打开弹窗时使用
+    let _savedTplName = '';
+    let _savedTypeId  = '';
+
+    /* ── xywh → sampleContainer 定位（270×400 坐标系）── */
+    const sampleContainer = document.getElementById('sampleContainer');
+    const inX = document.getElementById('inX');
+    const inY = document.getElementById('inY');
+    const inW = document.getElementById('inW');
+    const inH = document.getElementById('inH');
+
+    const guideBox = document.getElementById('guideBox');
+
+    function applyPosition() {
+      const x = parseInt(inX.value) || 0;
+      const y = parseInt(inY.value) || 0;
+      const w = parseInt(inW.value) || 270;
+      const h = parseInt(inH.value) || 400;
+      const l = (x / 270 * 100) + '%';
+      const t = (y / 400 * 100) + '%';
+      const W = (w / 270 * 100) + '%';
+      const H = (h / 400 * 100) + '%';
+      sampleContainer.style.left   = l;
+      sampleContainer.style.top    = t;
+      sampleContainer.style.width  = W;
+      sampleContainer.style.height = H;
+      guideBox.style.left   = l;
+      guideBox.style.top    = t;
+      guideBox.style.width  = W;
+      guideBox.style.height = H;
+    }
+    [inX, inY, inW, inH].forEach(el => el.addEventListener('input', applyPosition));
+    applyPosition();
+
+    /* ── 虚线切换 ── */
+    document.getElementById('btnDashed').addEventListener('click', function () {
+      const hidden = document.getElementById('frame').classList.toggle('dashes-hidden');
+      this.classList.toggle('active', hidden);
+    });
+
+    /* ── 动态文字区 ── */
+    let zoneSeq = 0;
+    let isRestoring = false;
+    const loadedFonts = {};
+
+    async function loadFont(name) {
+      if (!name || name === 'default' || loadedFonts[name]) return;
+      const fontMap = {
+        AlimamaDaoLiTi:          ['AlimamaDaoLiTi',       '../../font/AlimamaDaoLiTi.woff2'],
+        AlimamaDongFangDaKai:    ['AlimamaDongFangDaKai', '../../font/AlimamaDongFangDaKai.woff2'],
+        AlimamaShuHeiTi:         ['AlimamaShuHeiTi',      '../../font/AlimamaShuHeiTi.woff2'],
+        DingTalkJinBuTi:         ['DingTalkJinBuTi',      '../../font/DingTalkJinBuTi.woff2'],
+        TaoBaoMaiCaiTi:          ['TaoBaoMaiCaiTi',       '../../font/TaoBaoMaiCaiTi.woff2'],
+        'SotyrFangsong-Regular': ['SotyrFangsong',        '../../font/SotyrFangsong-Regular.woff2'],
+        bfs:  ['bfs',  '../../font/bfs.woff2'],
+        'MasaFont-Bold': ['MasaFont', '../../font/MasaFont-Bold.woff2'],
+        bzt:  ['bzt',  '../../font/bzt.woff2'],
+        sys:  ['sys',  '../../font/sys.woff2'],
+        syh:  ['syh',  '../../font/syh.woff2'],
+        sxt:  ['sxt',  '../../font/sxt.woff2'],
+        fbzd: ['fbzd', '../../font/fbzd.woff2'],
+        hot:  ['hot',  '../../font/hot.woff2'],
+        kkct: ['kkct', '../../font/kkct.woff2'],
+        yfxy: ['yfxy', '../../font/yfxy.woff2'],
+        lhls: ['lhls', '../../font/lhls.woff2'],
+      };
+      const entry = fontMap[name];
+      if (!entry) return;
+      try {
+        const ff = new FontFace(entry[0], `url("${entry[1]}")`);
+        await ff.load();
+        document.fonts.add(ff);
+        loadedFonts[name] = entry[0];
+      } catch (_) {}
+    }
+
+    function createZone() {
+      zoneSeq++;
+      const id  = 'layer_z' + zoneSeq;
+      const seq = zoneSeq;
+
+      /* 1. text-layer 插入 frame（在 guideBox 之前，保证 guideBox 最顶）*/
+      const frame   = document.getElementById('frame');
+      const layerEl = document.createElement('div');
+      layerEl.id        = id;
+      layerEl.className = 'text-layer';
+      layerEl.style.display = 'none';
+      frame.insertBefore(layerEl, document.getElementById('guideBox'));
+
+      /* 2. 构建 field-card DOM */
+      const card = document.createElement('div');
+      card.className   = 'field-card';
+      card.dataset.layer = id;
+      card.innerHTML = `
+        <div class="zone-header">
+          <input class="zone-name" type="text" value="\u6587\u5b57\u533a ${seq}" placeholder="\u533a\u57df\u540d\u79f0" />
+          <button class="zone-pin-btn" title="\u7f6e\u9876">&#8679;</button>
+          <button class="zone-del-btn" title="\u5220\u9664\u6b64\u533a">&times;</button>
+        </div>
+        <input type="text" class="field-input" placeholder="\u9884\u89c8\u6587\u5b57" />
+        <div class="charlimit-row">
+          <label>最少</label><input type="number" class="field-min-len" value="1" min="0" max="999" step="1" /><span>字</span>
+          <label>最多</label><input type="number" class="field-max-len" value="10" min="0" max="999" step="1" /><span>字</span>
+        </div>
+        <div class="xywh-row">
+          <label>X</label><input type="number" class="field-x" value="10"  min="0" max="270" step="1" />
+          <label>Y</label><input type="number" class="field-y" value="10"  min="0" max="400" step="1" />
+          <label>W</label><input type="number" class="field-w" value="250" min="1" max="270" step="1" />
+          <label>H</label><input type="number" class="field-h" value="50"  min="1" max="400" step="1" />
+        </div>
+        <div class="align-row">
+          <label>横轴</label>
+          <select class="field-align-h">
+            <option value="flex-start">左</option>
+            <option value="center" selected>居中</option>
+            <option value="flex-end">右</option>
+          </select>
+          <label>纵轴</label>
+          <select class="field-align-v">
+            <option value="flex-start">上</option>
+            <option value="center" selected>居中</option>
+            <option value="flex-end">下</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <select class="field-font">
+            <option value="default">默认字体</option>
+            <option value="AlimamaDaoLiTi">刀隶体</option>
+            <option value="AlimamaDongFangDaKai">东方大楷</option>
+            <option value="AlimamaShuHeiTi">数黑体</option>
+            <option value="DingTalkJinBuTi">进步体</option>
+            <option value="TaoBaoMaiCaiTi">买菜体</option>
+            <option value="SotyrFangsong-Regular">长宋体</option>
+            <option value="bfs">美仿宋</option>
+            <option value="MasaFont-Bold">衡山毛笔</option>
+            <option value="bzt">碑筆体</option>
+            <option value="sys">思源宋</option>
+            <option value="syh">思源黑</option>
+            <option value="sxt">手写体</option>
+            <option value="fbzd">飞波正点</option>
+            <option value="hot">海鸥体</option>
+            <option value="kkct">可可体</option>
+            <option value="yfxy">余繁新语</option>
+            <option value="lhls">临海隶属</option>
+          </select>
+          <input type="number" class="field-size" value="32" min="1" max="200" step="1" />
+          <span class="spacing-label">字距</span>
+          <input type="number" class="field-spacing" value="0" min="-100" max="100" step="1" />
+          <span class="spacing-label">行距</span>
+          <input type="number" class="field-line-spacing" value="1.3" min="0.1" max="10" step="0.1" />
+        </div>
+        <div class="color-row">
+          <button type="button" class="color-btn-black" data-color="#111111">黑</button>
+          <button type="button" class="color-btn-red active" data-color="#d1242f">红</button>
+          <button type="button" class="color-btn-white" data-color="#ffffff">白</button>
+        </div>
+        <div class="bgc-row">
+          <span class="bgc-label">背景</span>
+          <button type="button" class="bgc-btn-none active" data-bgc="transparent">无</button>
+          <button type="button" class="bgc-btn-black" data-bgc="#111111">黑</button>
+          <button type="button" class="bgc-btn-red" data-bgc="#d1242f">红</button>
+          <button type="button" class="bgc-btn-white" data-bgc="#ffffff">白</button>
+        </div>
+        <div class="dir-row">
+          <button type="button" class="active" data-dir="h">横排</button>
+          <button type="button" data-dir="v">竖排</button>
+        </div>
+        <div class="rotate-row">
+          <label>旋转</label><input type="number" class="field-rotate" value="0" min="-180" max="180" step="1" /><span>°</span>
+        </div>
+        <div class="stroke-row">
+          <label>描边</label><input type="number" class="field-stroke-w" value="0" min="0" max="10" step="0.5" /><span>px</span>
+          <select class="field-stroke-c">
+            <option value="#000000" selected>黑</option>
+            <option value="#d1242f">红</option>
+            <option value="#ffffff">白</option>
+          </select>
+        </div>
+        <div class="radius-row">
+          <label>圆角</label><input type="number" class="field-radius" value="0" min="0" max="100" step="1" /><span>px</span>
+        </div>
+        <button type="button" class="preview-btn">预览</button>
+        <div class="field-status"></div>
+      `;
+      document.querySelector('.wrap').appendChild(card);
+
+      /* 3. 绑定事件（镜像 create.html per-card 逻辑）*/
+      const input        = card.querySelector('.field-input');
+      const fontSel      = card.querySelector('.field-font');
+      const sizeIn       = card.querySelector('.field-size');
+      const spacingIn    = card.querySelector('.field-spacing');
+      const lineSpIn     = card.querySelector('.field-line-spacing');
+      const xIn = card.querySelector('.field-x');
+      const yIn = card.querySelector('.field-y');
+      const wIn = card.querySelector('.field-w');
+      const hIn = card.querySelector('.field-h');
+      const alignHSel   = card.querySelector('.field-align-h');
+      const alignVSel   = card.querySelector('.field-align-v');
+      const rotateIn    = card.querySelector('.field-rotate');
+      const strokeWIn   = card.querySelector('.field-stroke-w');
+      const strokeCIn   = card.querySelector('.field-stroke-c');
+      const radiusIn    = card.querySelector('.field-radius');
+
+      let currentColor = '#d1242f';
+      let currentBgc   = 'transparent';
+      let currentDir   = 'h';
+
+      function zonePos() {
+        const x = parseInt(xIn.value) || 0;
+        const y = parseInt(yIn.value) || 0;
+        const w = parseInt(wIn.value) || 100;
+        const h = parseInt(hIn.value) || 50;
+        layerEl.style.left   = (x / 270 * 100) + '%';
+        layerEl.style.top    = (y / 400 * 100) + '%';
+        layerEl.style.width  = (w / 270 * 100) + '%';
+        layerEl.style.height = (h / 400 * 100) + '%';
+      }
+      function zoneAlign() {
+        layerEl.style.justifyContent = alignHSel.value;
+        layerEl.style.alignItems     = alignVSel.value;
+        layerEl.style.textAlign = alignHSel.value === 'flex-start' ? 'left'
+                                : alignHSel.value === 'flex-end'   ? 'right' : 'center';
+      }
+      function zoneStyle() {
+        const fontVal = fontSel.value;
+        layerEl.style.fontFamily      = (fontVal === 'default') ? 'inherit' : (loadedFonts[fontVal] || fontVal);
+        layerEl.style.fontSize        = (sizeIn.value || 32) + 'px';
+        layerEl.style.letterSpacing   = (spacingIn.value || 0) + 'px';
+        layerEl.style.lineHeight      = lineSpIn.value || 1.3;
+        layerEl.style.color           = currentColor;
+        layerEl.style.backgroundColor = currentBgc;
+        layerEl.style.borderRadius    = (radiusIn.value || 0) + 'px';
+        layerEl.style.webkitTextStrokeWidth = (parseFloat(strokeWIn.value) || 0) + 'px';
+        layerEl.style.webkitTextStrokeColor = strokeCIn.value || '#000000';
+      }
+      function zoneRotate() {
+        const deg = parseFloat(rotateIn.value) || 0;
+        layerEl.style.transform = deg ? `rotate(${deg}deg)` : '';
+      }
+      function zoneShow() {
+        const text = input.value.trim();
+        if (!text) { layerEl.style.display = 'none'; return; }
+        layerEl.style.display = 'flex';
+        let sp = layerEl.firstElementChild;
+        if (!sp) { sp = document.createElement('span'); layerEl.appendChild(sp); }
+        sp.textContent    = text;
+        sp.style.writingMode = (currentDir === 'v') ? 'vertical-lr' : 'horizontal-tb';
+        sp.style.width       = (currentDir === 'v') ? '' : '100%';
+        zonePos(); zoneAlign(); zoneStyle(); zoneRotate();
+      }
+
+      input.addEventListener('input', zoneShow);
+      card.querySelector('.preview-btn').addEventListener('click', zoneShow);
+
+      [xIn, yIn, wIn, hIn].forEach(el =>
+        el.addEventListener('input', () => { if (layerEl.style.display !== 'none') zonePos(); }));
+
+      alignHSel.addEventListener('change', () => { if (layerEl.style.display !== 'none') zoneAlign(); });
+      alignVSel.addEventListener('change', () => { if (layerEl.style.display !== 'none') zoneAlign(); });
+
+      fontSel.addEventListener('change', async () => {
+        await loadFont(fontSel.value);
+        if (layerEl.style.display !== 'none') zoneStyle();
+      });
+      [sizeIn, spacingIn, lineSpIn].forEach(el =>
+        el.addEventListener('input', () => { if (layerEl.style.display !== 'none') zoneStyle(); }));
+
+      card.querySelectorAll('.color-row button').forEach(btn =>
+        btn.addEventListener('click', () => {
+          card.querySelectorAll('.color-row button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentColor = btn.dataset.color;
+          if (layerEl.style.display !== 'none') zoneStyle();
+        }));
+
+      card.querySelectorAll('.bgc-row button').forEach(btn =>
+        btn.addEventListener('click', () => {
+          card.querySelectorAll('.bgc-row button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentBgc = btn.dataset.bgc;
+          if (layerEl.style.display !== 'none') zoneStyle();
+        }));
+
+      card.querySelectorAll('.dir-row button').forEach(btn =>
+        btn.addEventListener('click', () => {
+          card.querySelectorAll('.dir-row button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentDir = btn.dataset.dir;
+          if (layerEl.style.display !== 'none') {
+            const sp = layerEl.firstElementChild;
+            if (sp) {
+              sp.style.writingMode = (currentDir === 'v') ? 'vertical-lr' : 'horizontal-tb';
+              sp.style.width       = (currentDir === 'v') ? '' : '100%';
+            }
+            zoneAlign();
+          }
+        }));
+
+      rotateIn.addEventListener('input', () => { if (layerEl.style.display !== 'none') zoneRotate(); });
+      [strokeWIn, strokeCIn, radiusIn].forEach(el =>
+        el.addEventListener('input', () => { if (layerEl.style.display !== 'none') zoneStyle(); }));
+
+      card.querySelector('.zone-del-btn').addEventListener('click', () => {
+        layerEl.remove();
+        card.remove();
+      });
+      card.querySelector('.zone-pin-btn').addEventListener('click', () => pinCard(card));
+
+      if (!isRestoring) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    document.getElementById('btnAddZone').addEventListener('click', createZone);
+
+    /* ── 置顶工具：将 card 插到 #frame 紧后方 ── */
+    function pinCard(card) {
+      const frame = document.getElementById('frame');
+      frame.insertAdjacentElement('afterend', card);
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    /* ── 创建日期格式工具 ── */
+    const CN_DIGITS = ['零','一','二','三','四','五','六','七','八','九'];
+    function numToCn(n) {
+      return String(n).split('').map(c => CN_DIGITS[parseInt(c)]).join('');
+    }
+    function monthToCn(m) {
+      if (m <= 10) return CN_DIGITS[m];
+      if (m === 11) return '十一';
+      return '十二';
+    }
+    function dayToCn(d) {
+      if (d <= 10) return CN_DIGITS[d];
+      if (d < 20) return '十' + CN_DIGITS[d - 10];
+      if (d === 20) return '二十';
+      if (d < 30) return '二十' + CN_DIGITS[d - 20];
+      if (d === 30) return '三十';
+      return '三十' + CN_DIGITS[d - 30];
+    }
+    const TIAN_GAN = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+    const DI_ZHI   = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+    const DZ_MONTH = ['寅','卯','辰','巳','午','未','申','酉','戌','亥','子','丑'];
+    function yearToGanZhi(y) {
+      return TIAN_GAN[(y - 4) % 10] + DI_ZHI[(y - 4) % 12];
+    }
+    function monthToGanZhi(m) {
+      return DZ_MONTH[m - 1] + '月';
+    }
+    function formatDate(dateStr, fmt) {
+      if (!dateStr) return '';
+      const [fy, fm, fd] = dateStr.split('-').map(Number);
+      const y2 = fy % 100;
+      switch (fmt) {
+        case 'cn_full':   return numToCn(y2) + '年' + monthToCn(fm) + '月' + dayToCn(fd) + '日';
+        case 'cn_ym':     return numToCn(y2) + '·' + monthToCn(fm) + '月';
+        case 'gz':        return yearToGanZhi(fy) + '年·' + monthToGanZhi(fm);
+        case 'num_full':  return y2 + '年' + String(fm).padStart(2,'0') + '月' + String(fd).padStart(2,'0') + '日';
+        case 'num_ym':    return y2 + '年' + String(fm).padStart(2,'0') + '月';
+        case 'dash_full': return y2 + '·' + String(fm).padStart(2,'0') + '·' + String(fd).padStart(2,'0');
+        case 'dash_ym':   return y2 + '·' + String(fm).padStart(2,'0');
+        default: return dateStr;
+      }
+    }
+
+    /* ── 创建时间区（与 createZone 类似，差异：date输入+格式选、无字数限）── */
+    function createDateZone() {
+      zoneSeq++;
+      const id  = 'layer_d' + zoneSeq;
+      const seq = zoneSeq;
+
+      const frame   = document.getElementById('frame');
+      const layerEl = document.createElement('div');
+      layerEl.id        = id;
+      layerEl.className = 'text-layer';
+      layerEl.style.display = 'none';
+      frame.insertBefore(layerEl, document.getElementById('guideBox'));
+
+      // 默认日期为今天
+      const _today = new Date();
+      const _defaultDate = `${_today.getFullYear()}-${String(_today.getMonth()+1).padStart(2,'0')}-${String(_today.getDate()).padStart(2,'0')}`;
+
+      const card = document.createElement('div');
+      card.className    = 'field-card';
+      card.dataset.layer = id;
+      card.innerHTML = `
+        <div class="zone-header">
+          <input class="zone-name" type="text" value="\u65f6\u95f4\u533a ${seq}" placeholder="\u533a\u57df\u540d\u79f0" />
+          <button class="zone-pin-btn" title="\u7f6e\u9876">&#8679;</button>
+          <button class="zone-del-btn" title="\u5220\u9664\u6b64\u533a">&times;</button>
+        </div>
+        <input type="date" class="field-input" value="${_defaultDate}" />
+        <select class="field-date-fmt">
+          <option value="cn_full">二六年十一月二十九日</option>
+          <option value="cn_ym">二六·十一月</option>
+          <option value="gz">辛丑年·子月</option>
+          <option value="num_full" selected>26年11月28日</option>
+          <option value="num_ym">26年11月</option>
+          <option value="dash_full">26·11·28</option>
+          <option value="dash_ym">26·11</option>
+        </select>
+        <div class="xywh-row">
+          <label>X</label><input type="number" class="field-x" value="55"  min="0" max="270" step="1" />
+          <label>Y</label><input type="number" class="field-y" value="360" min="0" max="400" step="1" />
+          <label>W</label><input type="number" class="field-w" value="160" min="1" max="270" step="1" />
+          <label>H</label><input type="number" class="field-h" value="30"  min="1" max="400" step="1" />
+        </div>
+        <div class="align-row">
+          <label>横轴</label>
+          <select class="field-align-h">
+            <option value="flex-start">左</option>
+            <option value="center" selected>居中</option>
+            <option value="flex-end">右</option>
+          </select>
+          <label>纵轴</label>
+          <select class="field-align-v">
+            <option value="flex-start">上</option>
+            <option value="center" selected>居中</option>
+            <option value="flex-end">下</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <select class="field-font">
+            <option value="default" selected>默认字体</option>
+            <option value="AlimamaDaoLiTi">刀隶体</option>
+            <option value="AlimamaDongFangDaKai">东方大楷</option>
+            <option value="AlimamaShuHeiTi">数黑体</option>
+            <option value="DingTalkJinBuTi">进步体</option>
+            <option value="TaoBaoMaiCaiTi">买菜体</option>
+            <option value="SotyrFangsong-Regular">长宋体</option>
+            <option value="bfs">美仿宋</option>
+            <option value="MasaFont-Bold">衡山毛笔</option>
+            <option value="bzt">碑筆体</option>
+            <option value="sys">思源宋</option>
+            <option value="syh">思源黑</option>
+            <option value="sxt">手写体</option>
+            <option value="fbzd">飞波正点</option>
+            <option value="hot">海鸥体</option>
+            <option value="kkct">可可体</option>
+            <option value="yfxy">余繁新语</option>
+            <option value="lhls">临海隶属</option>
+          </select>
+          <input type="number" class="field-size" value="20" min="1" max="200" step="1" />
+          <span class="spacing-label">字距</span>
+          <input type="number" class="field-spacing" value="0" min="-100" max="100" step="1" />
+          <span class="spacing-label">行距</span>
+          <input type="number" class="field-line-spacing" value="1.3" min="0.1" max="10" step="0.1" />
+        </div>
+        <div class="color-row">
+          <button type="button" class="color-btn-black active" data-color="#111111">黑</button>
+          <button type="button" class="color-btn-red" data-color="#d1242f">红</button>
+          <button type="button" class="color-btn-white" data-color="#ffffff">白</button>
+        </div>
+        <div class="bgc-row">
+          <span class="bgc-label">背景</span>
+          <button type="button" class="bgc-btn-none active" data-bgc="transparent">无</button>
+          <button type="button" class="bgc-btn-black" data-bgc="#111111">黑</button>
+          <button type="button" class="bgc-btn-red" data-bgc="#d1242f">红</button>
+          <button type="button" class="bgc-btn-white" data-bgc="#ffffff">白</button>
+        </div>
+        <div class="dir-row">
+          <button type="button" class="active" data-dir="h">横排</button>
+          <button type="button" data-dir="v">竖排</button>
+        </div>
+        <div class="rotate-row">
+          <label>旋转</label><input type="number" class="field-rotate" value="0" min="-180" max="180" step="1" /><span>°</span>
+        </div>
+        <div class="stroke-row">
+          <label>描边</label><input type="number" class="field-stroke-w" value="0" min="0" max="10" step="0.5" /><span>px</span>
+          <select class="field-stroke-c">
+            <option value="#000000" selected>黑</option>
+            <option value="#d1242f">红</option>
+            <option value="#ffffff">白</option>
+          </select>
+        </div>
+        <div class="radius-row">
+          <label>圆角</label><input type="number" class="field-radius" value="0" min="0" max="100" step="1" /><span>px</span>
+        </div>
+        <button type="button" class="preview-btn">预览</button>
+        <div class="field-status"></div>
+      `;
+      document.querySelector('.wrap').appendChild(card);
+
+      const dateIn    = card.querySelector('.field-input');
+      const fmtSel    = card.querySelector('.field-date-fmt');
+      const fontSel   = card.querySelector('.field-font');
+      const sizeIn    = card.querySelector('.field-size');
+      const spacingIn = card.querySelector('.field-spacing');
+      const lineSpIn  = card.querySelector('.field-line-spacing');
+      const xIn = card.querySelector('.field-x');
+      const yIn = card.querySelector('.field-y');
+      const wIn = card.querySelector('.field-w');
+      const hIn = card.querySelector('.field-h');
+      const alignHSel  = card.querySelector('.field-align-h');
+      const alignVSel  = card.querySelector('.field-align-v');
+      const rotateIn   = card.querySelector('.field-rotate');
+      const strokeWIn  = card.querySelector('.field-stroke-w');
+      const strokeCIn  = card.querySelector('.field-stroke-c');
+      const radiusIn   = card.querySelector('.field-radius');
+
+      let currentColor = '#111111';
+      let currentBgc   = 'transparent';
+      let currentDir   = 'h';
+
+      function getDisplayText() {
+        return formatDate(dateIn.value, fmtSel.value);
+      }
+      function zonePos() {
+        const x = parseInt(xIn.value) || 0;
+        const y = parseInt(yIn.value) || 0;
+        const w = parseInt(wIn.value) || 160;
+        const h = parseInt(hIn.value) || 30;
+        layerEl.style.left   = (x / 270 * 100) + '%';
+        layerEl.style.top    = (y / 400 * 100) + '%';
+        layerEl.style.width  = (w / 270 * 100) + '%';
+        layerEl.style.height = (h / 400 * 100) + '%';
+      }
+      function zoneAlign() {
+        layerEl.style.justifyContent = alignHSel.value;
+        layerEl.style.alignItems     = alignVSel.value;
+        layerEl.style.textAlign = alignHSel.value === 'flex-start' ? 'left'
+                                : alignHSel.value === 'flex-end'   ? 'right' : 'center';
+      }
+      function zoneStyle() {
+        const fontVal = fontSel.value;
+        layerEl.style.fontFamily      = (fontVal === 'default') ? 'inherit' : (loadedFonts[fontVal] || fontVal);
+        layerEl.style.fontSize        = (sizeIn.value || 20) + 'px';
+        layerEl.style.letterSpacing   = (spacingIn.value || 0) + 'px';
+        layerEl.style.lineHeight      = lineSpIn.value || 1.3;
+        layerEl.style.color           = currentColor;
+        layerEl.style.backgroundColor = currentBgc;
+        layerEl.style.borderRadius    = (radiusIn.value || 0) + 'px';
+        layerEl.style.webkitTextStrokeWidth = (parseFloat(strokeWIn.value) || 0) + 'px';
+        layerEl.style.webkitTextStrokeColor = strokeCIn.value || '#000000';
+      }
+      function zoneRotate() {
+        const deg = parseFloat(rotateIn.value) || 0;
+        layerEl.style.transform = deg ? `rotate(${deg}deg)` : '';
+      }
+      function zoneShow() {
+        const text = getDisplayText();
+        if (!text) { layerEl.style.display = 'none'; return; }
+        layerEl.style.display = 'flex';
+        let sp = layerEl.firstElementChild;
+        if (!sp) { sp = document.createElement('span'); layerEl.appendChild(sp); }
+        sp.textContent    = text;
+        sp.style.writingMode = (currentDir === 'v') ? 'vertical-lr' : 'horizontal-tb';
+        sp.style.width       = (currentDir === 'v') ? '' : '100%';
+        zonePos(); zoneAlign(); zoneStyle(); zoneRotate();
+      }
+
+      // 初始化显示今天日期
+      zoneShow();
+
+      dateIn.addEventListener('change', zoneShow);
+      fmtSel.addEventListener('change', () => {
+        if (layerEl.style.display !== 'none') {
+          const sp = layerEl.firstElementChild;
+          if (sp) sp.textContent = getDisplayText();
+        }
+      });
+      card.querySelector('.preview-btn').addEventListener('click', zoneShow);
+
+      [xIn, yIn, wIn, hIn].forEach(el =>
+        el.addEventListener('input', () => { if (layerEl.style.display !== 'none') zonePos(); }));
+      alignHSel.addEventListener('change', () => { if (layerEl.style.display !== 'none') zoneAlign(); });
+      alignVSel.addEventListener('change', () => { if (layerEl.style.display !== 'none') zoneAlign(); });
+
+      fontSel.addEventListener('change', async () => {
+        await loadFont(fontSel.value);
+        if (layerEl.style.display !== 'none') zoneStyle();
+      });
+      [sizeIn, spacingIn, lineSpIn].forEach(el =>
+        el.addEventListener('input', () => { if (layerEl.style.display !== 'none') zoneStyle(); }));
+
+      card.querySelectorAll('.color-row button').forEach(btn =>
+        btn.addEventListener('click', () => {
+          card.querySelectorAll('.color-row button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentColor = btn.dataset.color;
+          if (layerEl.style.display !== 'none') zoneStyle();
+        }));
+      card.querySelectorAll('.bgc-row button').forEach(btn =>
+        btn.addEventListener('click', () => {
+          card.querySelectorAll('.bgc-row button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentBgc = btn.dataset.bgc;
+          if (layerEl.style.display !== 'none') zoneStyle();
+        }));
+      card.querySelectorAll('.dir-row button').forEach(btn =>
+        btn.addEventListener('click', () => {
+          card.querySelectorAll('.dir-row button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentDir = btn.dataset.dir;
+          if (layerEl.style.display !== 'none') {
+            const sp = layerEl.firstElementChild;
+            if (sp) {
+              sp.style.writingMode = (currentDir === 'v') ? 'vertical-lr' : 'horizontal-tb';
+              sp.style.width       = (currentDir === 'v') ? '' : '100%';
+            }
+            zoneAlign();
+          }
+        }));
+
+      rotateIn.addEventListener('input', () => { if (layerEl.style.display !== 'none') zoneRotate(); });
+      [strokeWIn, strokeCIn, radiusIn].forEach(el =>
+        el.addEventListener('input', () => { if (layerEl.style.display !== 'none') zoneStyle(); }));
+
+      card.querySelector('.zone-del-btn').addEventListener('click', () => {
+        layerEl.remove();
+        card.remove();
+      });
+      card.querySelector('.zone-pin-btn').addEventListener('click', () => pinCard(card));
+
+      if (!isRestoring) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    document.getElementById('btnAddDate').addEventListener('click', createDateZone);
+
+    /* ── 文件选择：示例图（载入后去色并转为红白色调）── */
+    const btnSample  = document.getElementById('btnSample');
+    const fileSample = document.getElementById('fileSample');
+    const imgSample  = document.getElementById('imgSample');
+
+    btnSample.addEventListener('click', () => fileSample.click());
+    fileSample.addEventListener('change', function () {
+      const file = this.files[0];
+      if (!file) return;
+      const rawUrl = URL.createObjectURL(file);
+      const tmpImg = new Image();
+      tmpImg.onload = function () {
+        URL.revokeObjectURL(rawUrl);
+        const cv  = document.createElement('canvas');
+        cv.width  = tmpImg.naturalWidth;
+        cv.height = tmpImg.naturalHeight;
+        const ctx = cv.getContext('2d');
+        ctx.drawImage(tmpImg, 0, 0);
+        const imageData = ctx.getImageData(0, 0, cv.width, cv.height);
+        const d = imageData.data;
+        /* 去色 → 红白映射
+           灰度 v=0(黑) → 红 #d1242f(211,36,47)
+           灰度 v=255(白) → 白 (255,255,255)，线性插值，alpha 保留 */
+        for (let i = 0; i < d.length; i += 4) {
+          const v = d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114;
+          const t = v / 255;
+          d[i]   = Math.round(211 + (255 - 211) * t);
+          d[i+1] = Math.round( 36 + (255 -  36) * t);
+          d[i+2] = Math.round( 47 + (255 -  47) * t);
+        }
+        ctx.putImageData(imageData, 0, 0);
+        cv.toBlob(blob => {
+          const processedUrl = URL.createObjectURL(blob);
+          imgSample.onload = () => URL.revokeObjectURL(processedUrl);
+          imgSample.src = processedUrl;
+          imgSample.style.display = 'block';
+          checkPublishReady();
+        }, 'image/png');
+      };
+      tmpImg.src = rawUrl;
+    });
+
+    /* ── 文件选择：遮罩图 ── */
+    const btnMask  = document.getElementById('btnMask');
+    const fileMask = document.getElementById('fileMask');
+    const imgMask  = document.getElementById('imgMask');
+
+    btnMask.addEventListener('click', () => fileMask.click());
+    fileMask.addEventListener('change', function () {
+      const file = this.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      imgMask.onload = () => URL.revokeObjectURL(url);
+      imgMask.src = url;
+      imgMask.style.display = 'block';
+    });
+
+    /* ── 发布按钮启用条件：示例图已选 ── */
+    function checkPublishReady() {
+      document.getElementById('btnPublish').disabled = !fileSample.files[0];
+    }
+
+    /* ── 发布弹窗 ── */
+    const publishModal = document.getElementById('publishModal');
+    const pubName      = document.getElementById('pubName');
+    const pubType      = document.getElementById('pubType');
+    const pubErr       = document.getElementById('pubErr');
+
+    // 预加载分类列表
+    let typesLoaded = false;
+    async function loadTypes() {
+      if (typesLoaded) return;
+      try {
+        const res  = await fetch('../template.php?action=list_types');
+        const data = await res.json();
+        if (data.ok && data.types) {
+          pubType.innerHTML = data.types.map(t =>
+            `<option value="${t.id}">${t.name}</option>`
+          ).join('');
+          typesLoaded = true;
+        }
+      } catch {
+        pubType.innerHTML = '<option value="">加载失败</option>';
+      }
+    }
+
+    document.getElementById('btnPublish').addEventListener('click', async () => {
+      await loadTypes();
+      // 有已保存名称时预填，否则清空
+      pubName.value = _savedTplName;
+      // 预选分类
+      if (_savedTypeId) pubType.value = _savedTypeId;
+      pubErr.textContent = '';
+      // 弹窗标题 & 另存为按钮
+      const isPublished = isEditing && _savedTplName !== '';
+      document.getElementById('pubTitle').textContent = isPublished ? '更新照片模板' : '发布照片模板';
+      document.getElementById('pubSaveAs').style.display = isPublished ? '' : 'none';
+      document.getElementById('pubConfirm').textContent  = isPublished ? '确定更新' : '确定发布';
+      publishModal.classList.add('show');
+      setTimeout(() => pubName.focus(), 60);
+    });
+
+    document.getElementById('pubCancel').addEventListener('click', () => {
+      publishModal.classList.remove('show');
+    });
+    publishModal.addEventListener('click', e => {
+      if (e.target === publishModal) publishModal.classList.remove('show');
+    });
+
+    document.getElementById('pubConfirm').addEventListener('click', async () => {
+      await doPubOrUpdate(templateId);
+    });
+
+    document.getElementById('pubSaveAs').addEventListener('click', async () => {
+      const name   = pubName.value.trim();
+      const typeId = pubType.value;
+      pubErr.textContent = '';
+      if (!name)   { pubErr.textContent = '请输入模板名称'; return; }
+      if (!typeId) { pubErr.textContent = '请选择分类';     return; }
+      const btn = document.getElementById('pubSaveAs');
+      btn.disabled = true;
+      try {
+        const cfd = new FormData();
+        cfd.append('action',  'create_template');
+        cfd.append('type_id', typeId);
+        cfd.append('name',    name);
+        const cRes  = await fetch('../template.php', { method: 'POST', body: cfd });
+        const cData = await cRes.json();
+        if (!cData.ok) { pubErr.textContent = cData.error || '创建失败'; return; }
+        const newId = String(cData.id);
+        const ok = await doPubOrUpdate(newId, true);
+        if (ok) setTimeout(() => { location.href = location.pathname + '?template_id=' + newId; }, 800);
+      } catch (err) {
+        pubErr.textContent = '网络错误：' + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    async function doPubOrUpdate(targetId, isSaveAs = false) {
+      const name   = pubName.value.trim();
+      const typeId = pubType.value;
+      pubErr.textContent = '';
+      if (!name)   { pubErr.textContent = '请输入模板名称'; return false; }
+      if (!typeId) { pubErr.textContent = '请选择分类';     return false; }
+
+      const btn = document.getElementById(isSaveAs ? 'pubSaveAs' : 'pubConfirm');
+      btn.disabled = true;
+      try {
+        // 生成合成缩略图 (270×400)
+        const W = 270, H = 400;
+        const cv = document.createElement('canvas');
+        cv.width = W; cv.height = H;
+        const ctx = cv.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, W, H);
+        if (imgSample.naturalWidth) {
+          const x = parseFloat(document.getElementById('inX').value) || 0;
+          const y = parseFloat(document.getElementById('inY').value) || 0;
+          const w = parseFloat(document.getElementById('inW').value) || W;
+          const h = parseFloat(document.getElementById('inH').value) || H;
+          try { ctx.drawImage(imgSample, x, y, w, h); } catch (_) {}
+        }
+        if (imgMask.naturalWidth) {
+          try { ctx.drawImage(imgMask, 0, 0, W, H); } catch (_) {}
+        }
+        const thumbBlob = await new Promise(resolve => cv.toBlob(resolve, 'image/png'));
+
+        const fd = new FormData();
+        fd.append('action',      'save_config');
+        fd.append('template_id', targetId);
+        fd.append('tpl_name',    name);
+        fd.append('type_id',     typeId);
+        // 收集所有区域配置
+        const zones = [];
+        document.querySelectorAll('.field-card').forEach(card => {
+          const isDate = !!card.querySelector('.field-date-fmt');
+          const zone = {
+            type:    isDate ? 'date' : 'text',
+            name:    card.querySelector('.zone-name').value,
+            x:       parseInt(card.querySelector('.field-x').value)            || 0,
+            y:       parseInt(card.querySelector('.field-y').value)            || 0,
+            w:       parseInt(card.querySelector('.field-w').value)            || 100,
+            h:       parseInt(card.querySelector('.field-h').value)            || 50,
+            alignH:  card.querySelector('.field-align-h').value,
+            alignV:  card.querySelector('.field-align-v').value,
+            font:    card.querySelector('.field-font').value,
+            size:    parseInt(card.querySelector('.field-size').value)         || 20,
+            spacing: parseInt(card.querySelector('.field-spacing').value)      || 0,
+            lineH:   parseFloat(card.querySelector('.field-line-spacing').value) || 1.3,
+            color:   card.querySelector('.color-row button.active')?.dataset.color  || '#111111',
+            bgc:     card.querySelector('.bgc-row button.active')?.dataset.bgc      || 'transparent',
+            dir:     card.querySelector('.dir-row button.active')?.dataset.dir      || 'h',
+            rotate:  parseFloat(card.querySelector('.field-rotate').value)     || 0,
+            strokeW: parseFloat(card.querySelector('.field-stroke-w').value)   || 0,
+            strokeC: card.querySelector('.field-stroke-c').value               || '#000000',
+            radius:  parseInt(card.querySelector('.field-radius').value)       || 0,
+          };
+          if (isDate) {
+            zone.dateFmt = card.querySelector('.field-date-fmt').value;
+          } else {
+            zone.minLen      = parseInt(card.querySelector('.field-min-len').value) || 0;
+            zone.maxLen      = parseInt(card.querySelector('.field-max-len').value) || 10;
+            zone.defaultText = card.querySelector('.field-input')?.value || '';
+          }
+          zones.push(zone);
+        });
+        const cfg = {
+          kind:   'photo',
+          sample: {
+            x: parseInt(inX.value) || 0,
+            y: parseInt(inY.value) || 0,
+            w: parseInt(inW.value) || 270,
+            h: parseInt(inH.value) || 400,
+          },
+          zones,
+        };
+        fd.append('config', JSON.stringify(cfg));
+
+        // 上传示例图（bg 字段 → bg_img 列）
+        if (fileSample.files[0]) fd.append('bg',    fileSample.files[0]);
+        // 上传遮罩图（top 字段 → top_img 列）
+        if (fileMask.files[0])   fd.append('top',   fileMask.files[0]);
+        // 上传合成缩略图
+        if (thumbBlob)           fd.append('thumb', thumbBlob, 'thumb.png');
+
+        const res  = await fetch('../template.php', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!data.ok) { pubErr.textContent = data.error || '发布失败'; return false; }
+
+        _savedTplName = name;
+        _savedTypeId  = typeId;
+        publishModal.classList.remove('show');
+        if (!isSaveAs) {
+          if (confirm('保存成功！是否返回模板列表？')) location.href = '../template.php';
+        }
+        return true;
+      } catch (err) {
+        pubErr.textContent = '网络错误：' + err.message;
+        return false;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    /* ══════════════════════════════════════════════════════
+       启动：若有 template_id，从服务器载入已保存的配置
+    ══════════════════════════════════════════════════════ */
+    async function restoreConfig() {
+      if (!templateId) return;
+      isRestoring = true;
+      let data;
+      try {
+        const res = await fetch(`../template.php?action=get_config&template_id=${encodeURIComponent(templateId)}`);
+        data = await res.json();
+      } catch { return; }
+      if (!data.ok) return;
+
+      _savedTplName = data.tpl_name || '';
+      _savedTypeId  = String(data.type_id || '');
+
+      /* ── 恢复示例图 ── */
+      if (data.bg_img) {
+        const src = '../' + data.bg_img;
+        const tmpImg = new Image();
+        tmpImg.crossOrigin = 'anonymous';
+        tmpImg.onload = function () {
+          const cv = document.createElement('canvas');
+          cv.width = tmpImg.naturalWidth; cv.height = tmpImg.naturalHeight;
+          const ctx = cv.getContext('2d');
+          ctx.drawImage(tmpImg, 0, 0);
+          const id2 = ctx.getImageData(0, 0, cv.width, cv.height);
+          const d = id2.data;
+          for (let i = 0; i < d.length; i += 4) {
+            const v = d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114;
+            const t = v / 255;
+            d[i]   = Math.round(211 + (255 - 211) * t);
+            d[i+1] = Math.round( 36 + (255 -  36) * t);
+            d[i+2] = Math.round( 47 + (255 -  47) * t);
+          }
+          ctx.putImageData(id2, 0, 0);
+          cv.toBlob(blob => {
+            const url = URL.createObjectURL(blob);
+            imgSample.onload = () => URL.revokeObjectURL(url);
+            imgSample.src = url;
+            imgSample.style.display = 'block';
+            // 示例图已有存档，允许发布
+            document.getElementById('btnPublish').disabled = false;
+          }, 'image/png');
+        };
+        tmpImg.src = src;
+      }
+
+      /* ── 恢复遮罩图 ── */
+      if (data.top_img) {
+        imgMask.src = '../' + data.top_img;
+        imgMask.style.display = 'block';
+      }
+
+      const cfg = (() => { try { return JSON.parse(data.config || '{}'); } catch { return {}; } })();
+
+      /* ── 恢复示例图坐标 ── */
+      if (cfg.sample) {
+        inX.value = cfg.sample.x ?? 0;
+        inY.value = cfg.sample.y ?? 0;
+        inW.value = cfg.sample.w ?? 270;
+        inH.value = cfg.sample.h ?? 400;
+        applyPosition();
+      }
+
+      /* ── 恢复区域（zones）── */
+      if (Array.isArray(cfg.zones)) {
+        for (const z of cfg.zones) {
+          if (z.type === 'date') {
+            createDateZone();
+          } else {
+            createZone();
+          }
+          // createZone/createDateZone 把 card append 到 .wrap 末尾
+          const card = document.querySelector('.wrap .field-card:last-child');
+          if (!card) continue;
+
+          // 区域名
+          const nameEl = card.querySelector('.zone-name');
+          if (nameEl && z.name) nameEl.value = z.name;
+
+          // xywh
+          const fX = card.querySelector('.field-x'); if (fX) fX.value = z.x ?? 0;
+          const fY = card.querySelector('.field-y'); if (fY) fY.value = z.y ?? 0;
+          const fW = card.querySelector('.field-w'); if (fW) fW.value = z.w ?? 100;
+          const fH = card.querySelector('.field-h'); if (fH) fH.value = z.h ?? 50;
+
+          // 对齐
+          const aH = card.querySelector('.field-align-h'); if (aH && z.alignH) aH.value = z.alignH;
+          const aV = card.querySelector('.field-align-v'); if (aV && z.alignV) aV.value = z.alignV;
+
+          // 字体/大小/字距/行距
+          const fFont = card.querySelector('.field-font');
+          if (fFont && z.font) { fFont.value = z.font; loadFont(z.font); }
+          const fSize = card.querySelector('.field-size'); if (fSize) fSize.value = z.size ?? 20;
+          const fSp   = card.querySelector('.field-spacing'); if (fSp) fSp.value = z.spacing ?? 0;
+          const fLine = card.querySelector('.field-line-spacing'); if (fLine) fLine.value = z.lineH ?? 1.3;
+
+          // 颜色（click 同步闭包变量 currentColor）
+          const colorBtn = [...card.querySelectorAll('.color-row button')].find(b => b.dataset.color === z.color);
+          if (colorBtn) colorBtn.click();
+          // 背景色（click 同步闭包变量 currentBgc）
+          const bgcBtn = [...card.querySelectorAll('.bgc-row button')].find(b => b.dataset.bgc === z.bgc);
+          if (bgcBtn) bgcBtn.click();
+          // 方向（click 同步闭包变量 currentDir）
+          const dirBtn = [...card.querySelectorAll('.dir-row button')].find(b => b.dataset.dir === z.dir);
+          if (dirBtn) dirBtn.click();
+
+          // 旋转/描边/圆角
+          const fRot = card.querySelector('.field-rotate'); if (fRot) fRot.value = z.rotate ?? 0;
+          const fStW = card.querySelector('.field-stroke-w'); if (fStW) fStW.value = z.strokeW ?? 0;
+          const fStC = card.querySelector('.field-stroke-c'); if (fStC && z.strokeC) fStC.value = z.strokeC;
+          const fRad = card.querySelector('.field-radius'); if (fRad) fRad.value = z.radius ?? 0;
+
+          // 文字区专有
+          if (z.type !== 'date') {
+            const fMin = card.querySelector('.field-min-len'); if (fMin) fMin.value = z.minLen ?? 0;
+            const fMax = card.querySelector('.field-max-len'); if (fMax) fMax.value = z.maxLen ?? 10;
+            // 回填预览文本并渲染
+            const fInput = card.querySelector('.field-input');
+            if (fInput && z.defaultText) {
+              fInput.value = z.defaultText;
+              fInput.dispatchEvent(new Event('input'));
+            }
+          }
+          // 时间区专有
+          if (z.type === 'date') {
+            const fFmt = card.querySelector('.field-date-fmt');
+            if (fFmt && z.dateFmt) {
+              fFmt.value = z.dateFmt;
+              fFmt.dispatchEvent(new Event('change')); // 触发格式刷新
+            }
+            // 重新渲染（含恢复后的字体/颜色/大小）
+            card.querySelector('.preview-btn').click();
+          }
+        }
+      }
+      isRestoring = false;
+    }
+
+    restoreConfig();
+  </script>
+</body>
+</html>

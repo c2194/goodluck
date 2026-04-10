@@ -520,11 +520,34 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;   /* flex-start 避免 overflow+center 导致顶部裁切 */
       background: var(--bg);
       z-index: 100;
-      padding: 20px;
+      padding: 0;
       overflow-y: auto;
+    }
+    /* tab 下方的 url 参数不在初始 picker 区显示 */
+    #urlParamInitial { display: none !important; }
+    /* 标题在 picker 内的宽度约束 */
+    .initial-picker > .page-header {
+      width: 100%;
+      max-width: 480px;
+      padding-top: 24px;
+    }
+    /* tab-bar 在 picker 内撑满可用宽度 */
+    .initial-picker > .tab-bar {
+      width: 100%;
+      max-width: 480px;
+      margin: 14px 0 0;
+    }
+    /* 瓷片+按钮区域：flex-start 让内容紧跟 Tab 下方，不居中浮动 */
+    .picker-main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      width: 100%;
+      padding: 20px;
     }
     .initial-picker.hidden {
       display: none;
@@ -582,18 +605,73 @@
     .toolbar.hidden {
       display: none;
     }
+
+    /* 页头 */
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px 12px 0;
+    }
+    .page-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: 4px;
+    }
+
+    /* Tab */
+    .tab-bar {
+      display: flex;
+      margin: 14px 12px 0;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 4px;
+    }
+    .tab-item {
+      flex: 1;
+      text-align: center;
+      padding: 9px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      border-radius: 9px;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+      user-select: none;
+    }
+    .tab-item.active {
+      background: var(--btn);
+      color: #fff;
+    }
   </style>
 </head>
 <body>
+
   <!-- 初始居中选择按钮 -->
   <div id="initialPicker" class="initial-picker">
-    <div id="urlParamInitial" class="url-param"></div>
-    <div class="tile-grid" id="tileGrid"></div>
-    <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
-      <label class="tricolor-mode-label"><input type="checkbox" id="chkTricolorInitial"> 三色图</label>
-      <button id="btnPickInitial">选择图片</button>
+
+    <!-- 标题和 Tab：放在 picker 内，不被 fixed 层遮住 -->
+    <div class="page-header">
+      <span class="page-title">祝福语</span>
     </div>
-    <input id="fileInitial" type="file" accept="image/*" hidden />
+    <div class="tab-bar">
+      <div class="tab-item active">图文类</div>
+      <div class="tab-item">图像类</div>
+    </div>
+
+    <!-- 瓷片 + 按钮：用 picker-main 做垂直居中，避免 overflow 顶部裁切 -->
+    <div class="picker-main">
+      <div id="urlParamInitial" class="url-param"></div>
+      <div class="tile-grid" id="tileGrid"></div>
+      <div style="display:none;flex-direction:column;align-items:center;gap:14px;" id="pickerActions">
+        <label class="tricolor-mode-label"><input type="checkbox" id="chkTricolorInitial"> 三色图</label>
+        <button id="btnPickInitial">选择图片</button>
+      </div>
+      <input id="fileInitial" type="file" accept="image/*" hidden />
+    </div>
+
   </div>
 
   <div id="mainContent" class="wrap main-content">
@@ -1472,7 +1550,8 @@
             bg: tpl.bg,
             top: tpl.top
           });
-          a.href = 'dl/template/apply.html?' + params.toString() + (search ? '&' + search.slice(1) : '');
+          const applyPage = tpl.kind === 'photo' ? 'dl/template/pic_apply.html' : 'dl/template/apply.html';
+          a.href = applyPage + '?' + params.toString() + (search ? '&' + search.slice(1) : '');
           const img = document.createElement('img');
           img.src = tpl.thumb ? ('dl/' + tpl.thumb) : '';
           img.alt = tpl.name;
