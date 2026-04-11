@@ -429,6 +429,10 @@
         <div class="generated-preview-title">最终合成（抖动照片 + 遮罩文字 270×400）</div>
         <canvas id="compositeSmallCanvas" width="270" height="400" style="width:60%;display:block;margin:0 auto;image-rendering:pixelated;"></canvas>
       </div>
+      <div class="generated-preview" id="redGrayDitherPreviewBox">
+        <div class="generated-preview-title">红色灰阶抖动（红=中灰 270×400）</div>
+        <canvas id="redGrayDitherCanvas" width="270" height="400" style="width:60%;display:block;margin:0 auto;image-rendering:pixelated;"></canvas>
+      </div>
     </div>
 
     <!-- 录音 -->
@@ -486,6 +490,8 @@
     const overlayScaledCanvas = document.getElementById('overlayScaledCanvas');
     const compositeSmallPreviewBox = document.getElementById('compositeSmallPreviewBox');
     const compositeSmallCanvas = document.getElementById('compositeSmallCanvas');
+    const redGrayDitherPreviewBox = document.getElementById('redGrayDitherPreviewBox');
+    const redGrayDitherCanvas = document.getElementById('redGrayDitherCanvas');
 
     // ── URL 参数 ──────────────────────────────────────────────
     const urlParams  = new URLSearchParams(window.location.search);
@@ -895,6 +901,15 @@
         photoOnlyPreviewBox.classList.add('show');
         overlayOnlyPreviewBox.classList.add('show');
         ditheredPreviewBox.classList.add('show');
+
+        // 红色灰阶抖动
+        const redGrayCanvas = buildRedGrayDitherCanvas();
+        redGrayDitherCanvas.width = redGrayCanvas.width;
+        redGrayDitherCanvas.height = redGrayCanvas.height;
+        const rgctx = redGrayDitherCanvas.getContext('2d');
+        rgctx.drawImage(redGrayCanvas, 0, 0);
+        redGrayDitherPreviewBox.classList.add('show');
+
         document.querySelector('.record-section').style.display = '';
         document.querySelector('.send-section').style.display = '';
         btn.textContent = '重新生成';
@@ -1223,35 +1238,25 @@
       const d = imgData.data;
       for (let i = 0; i < d.length; i += 4) {
         let r = d[i], g = d[i+1], b = d[i+2];
-        if (currentPhotoFilter === 'bw' || currentPhotoFilter === 'bwred') {
+        // 红色/黑白/黑白红模式统一先转灰度，交给抖动处理
+        if (currentPhotoFilter === 'bw' || currentPhotoFilter === 'red') {
           const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-          if (currentPhotoFilter === 'bwred') {
-            const isRed = (r > 80 && r > g * 1.4 && r > b * 1.4 && (r - Math.max(g, b)) > 30);
-            if (isRed) {
-              let v = gray;
-              v = ((v - 128) * 1.25 + 128);
-              v = 255 * Math.pow(Math.max(0, Math.min(255, v)) / 255, 0.85);
-              v = Math.max(0, Math.min(255, v));
-              const t = v / 255;
-              r = Math.round(138 + (255 - 138) * t);
-              g = Math.round(15 + (255 - 15) * t);
-              b = Math.round(24 + (255 - 24) * t);
-            } else {
-              r = g = b = Math.round(gray);
-            }
+          r = g = b = Math.round(gray);
+        } else if (currentPhotoFilter === 'bwred') {
+          const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+          const isRed = (r > 80 && r > g * 1.4 && r > b * 1.4 && (r - Math.max(g, b)) > 30);
+          if (isRed) {
+            let v = gray;
+            v = ((v - 128) * 1.25 + 128);
+            v = 255 * Math.pow(Math.max(0, Math.min(255, v)) / 255, 0.85);
+            v = Math.max(0, Math.min(255, v));
+            const t = v / 255;
+            r = Math.round(138 + (255 - 138) * t);
+            g = Math.round(15 + (255 - 15) * t);
+            b = Math.round(24 + (255 - 24) * t);
           } else {
             r = g = b = Math.round(gray);
           }
-        } else if (currentPhotoFilter === 'red') {
-          const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-          let v = gray;
-          v = ((v - 128) * 1.25 + 128);
-          v = 255 * Math.pow(Math.max(0, Math.min(255, v)) / 255, 0.85);
-          v = Math.max(0, Math.min(255, v));
-          const t = v / 255;
-          r = Math.round(138 + (255 - 138) * t);
-          g = Math.round(15 + (255 - 15) * t);
-          b = Math.round(24 + (255 - 24) * t);
         }
         d[i] = r; d[i+1] = g; d[i+2] = b;
       }
@@ -1273,7 +1278,110 @@
         serpentine: true,
       });
 
-      return converter.convert(cv);
+      const result = converter.convert(cv);
+
+      // 根据滤镜模式替换输出颜色
+      if (currentPhotoFilter === 'red' || currentPhotoFilter === 'bw') {
+        const rctx = result.getContext('2d');
+        const rd = rctx.getImageData(0, 0, result.width, result.height);
+        const px = rd.data;
+        for (let i = 0; i < px.length; i += 4) {
+          const isBlack = px[i] === 0 && px[i+1] === 0 && px[i+2] === 0;
+          const isRed = px[i] === 255 && px[i+1] === 0 && px[i+2] === 0;
+          if (currentPhotoFilter === 'red') {
+            // 红色模式：黑像素变红，红像素也保持红 → 只有红+白
+            if (isBlack) { px[i] = 255; px[i+1] = 0; px[i+2] = 0; }
+          } else if (currentPhotoFilter === 'bw') {
+            // 黑白模式：红像素变黑 → 只有黑+白
+            if (isRed) { px[i] = 0; px[i+1] = 0; px[i+2] = 0; }
+          }
+        }
+        rctx.putImageData(rd, 0, 0);
+      }
+      // bwred 模式：保留黑+红+白三色不变
+
+      return result;
+    }
+
+    /**
+     * 红色灰阶抖动：用红色作为中间灰阶参与 Floyd-Steinberg 抖动
+     * 3 个亮度级别：黑(0) → 红(~128) → 白(255)
+     */
+    function buildRedGrayDitherCanvas() {
+      const FW = 270, FH = 400;
+      const cv = document.createElement('canvas');
+      cv.width = FW;
+      cv.height = FH;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, FW, FH);
+
+      if (photoImg.naturalWidth) {
+        const sample = templateConfig?.sample || { x: 0, y: 0, w: 270, h: 400 };
+        drawImageCover(ctx, photoImg, sample.x || 0, sample.y || 0, sample.w || 270, sample.h || 400);
+      }
+
+      // 转灰度
+      const imgData = ctx.getImageData(0, 0, FW, FH);
+      const buf = new Float32Array(FW * FH);
+      for (let i = 0; i < FW * FH; i++) {
+        const p = i * 4;
+        buf[i] = 0.299 * imgData.data[p] + 0.587 * imgData.data[p+1] + 0.114 * imgData.data[p+2];
+      }
+
+      // 3 级 Floyd-Steinberg 抖动：0(黑) / 128(红) / 255(白)
+      const levels = [0, 128, 255];
+      const out = new Uint8Array(FW * FH); // 0=黑, 1=红, 2=白
+
+      for (let y = 0; y < FH; y++) {
+        const leftToRight = (y % 2 === 0); // serpentine
+        const xStart = leftToRight ? 0 : FW - 1;
+        const xEnd   = leftToRight ? FW : -1;
+        const xStep  = leftToRight ? 1 : -1;
+
+        for (let x = xStart; x !== xEnd; x += xStep) {
+          const idx = y * FW + x;
+          const old = buf[idx];
+
+          // 找最近的级别
+          let bestLevel = 0, bestDist = Infinity;
+          for (let li = 0; li < levels.length; li++) {
+            const dist = Math.abs(old - levels[li]);
+            if (dist < bestDist) { bestDist = dist; bestLevel = li; }
+          }
+          out[idx] = bestLevel;
+          const err = old - levels[bestLevel];
+
+          // 扩散误差
+          if (leftToRight) {
+            if (x + 1 < FW) buf[idx + 1] += err * 7 / 16;
+            if (y + 1 < FH) {
+              if (x - 1 >= 0) buf[(y+1) * FW + (x-1)] += err * 3 / 16;
+              buf[(y+1) * FW + x] += err * 5 / 16;
+              if (x + 1 < FW) buf[(y+1) * FW + (x+1)] += err * 1 / 16;
+            }
+          } else {
+            if (x - 1 >= 0) buf[idx - 1] += err * 7 / 16;
+            if (y + 1 < FH) {
+              if (x + 1 < FW) buf[(y+1) * FW + (x+1)] += err * 3 / 16;
+              buf[(y+1) * FW + x] += err * 5 / 16;
+              if (x - 1 >= 0) buf[(y+1) * FW + (x-1)] += err * 1 / 16;
+            }
+          }
+        }
+      }
+
+      // 输出到 canvas
+      const colors = [[0,0,0], [255,0,0], [255,255,255]];
+      const outData = ctx.createImageData(FW, FH);
+      const px = outData.data;
+      for (let i = 0; i < FW * FH; i++) {
+        const c = colors[out[i]];
+        const p = i * 4;
+        px[p] = c[0]; px[p+1] = c[1]; px[p+2] = c[2]; px[p+3] = 255;
+      }
+      ctx.putImageData(outData, 0, 0);
+      return cv;
     }
 
     // ── 录音 ─────────────────────────────────────────────────
@@ -1358,9 +1466,20 @@
       }
       if (!deviceParam) { alert('URL 缺少设备参数，无法发送祝福。'); return false; }
 
-      // 发送最终合成图（抖动照片 + 遮罩文字 270×400）
+      // 根据滤镜选择底图：红色模式用红色灰阶抖动图，其他用普通抖动图
+      const sendCanvas = document.createElement('canvas');
+      sendCanvas.width = 270;
+      sendCanvas.height = 400;
+      const sctx = sendCanvas.getContext('2d');
+      if (currentPhotoFilter === 'red') {
+        sctx.drawImage(redGrayDitherCanvas, 0, 0);
+      } else {
+        sctx.drawImage(ditheredPreviewCanvas, 0, 0);
+      }
+      sctx.drawImage(overlayScaledCanvas, 0, 0);
+
       const sendBlob = await new Promise((resolve, reject) => {
-        compositeSmallCanvas.toBlob(blob => {
+        sendCanvas.toBlob(blob => {
           if (!blob) reject(new Error('合成图生成失败'));
           else resolve(blob);
         }, 'image/png');
