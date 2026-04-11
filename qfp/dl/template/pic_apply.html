@@ -13,12 +13,15 @@
       --border: rgba(255,255,255,0.10);
       --btn: #1f6feb;
     }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
       margin: 0;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
       background: var(--bg);
       color: var(--text);
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
     .wrap { padding: 12px; max-width: 920px; margin: 0 auto; }
 
@@ -253,6 +256,10 @@
       box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
     }
     .field-card input::placeholder { color: #555; }
+    input[type="text"], input[type="date"], textarea {
+      user-select: text;
+      -webkit-user-select: text;
+    }
 
     .btn-generate {
       margin-top: 16px;
@@ -359,12 +366,17 @@
     .send-success-overlay {
       display: none; position: fixed; inset: 0;
       background: #0f172a; z-index: 9999;
-      justify-content: center; align-items: center;
+      overflow-y: auto;
+      flex-direction: column;
+      align-items: center;
     }
     .send-success-overlay.show { display: flex; }
-    .send-success-content { text-align: center; padding: 20px; }
-    .send-success-text { font-size: 20px; color: #fff; margin-bottom: 16px; }
-    .send-success-time { font-size: 16px; color: #d1242f; }
+    .send-success-content { text-align: center; padding: 20px; width: 100%; max-width: 600px; }
+    .send-success-text { font-size: 20px; color: #fff; margin-bottom: 6px; font-weight: 700; }
+    .send-success-hint { font-size: 14px; color: #d1242f; margin-bottom: 20px; }
+    .success-imgs { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+    .success-imgs a { display: block; }
+    .success-imgs img, .success-imgs canvas { max-width: 100%; border-radius: 10px; display: block; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); }
 
     /* 加载遮罩 */
     .overlay {
@@ -501,7 +513,7 @@
 
     <button type="button" class="btn-generate" id="btnGenerate" disabled>生成祝福牌</button>
     <div class="field-status" id="genStatus"></div>
-    <div class="preview-stack">
+    <div class="preview-stack" style="display:none;">
       <div class="generated-preview" id="generatedPreviewBox">
         <div class="generated-preview-title">合成后的图片预览</div>
         <img id="generatedPreviewImg" alt="合成预览图" />
@@ -525,6 +537,14 @@
       <div class="generated-preview" id="compositeSmallPreviewBox">
         <div class="generated-preview-title">最终合成（抖动照片 + 遮罩文字 270×400）</div>
         <canvas id="compositeSmallCanvas" width="270" height="400" style="width:60%;display:block;margin:0 auto;image-rendering:pixelated;"></canvas>
+      </div>
+      <div class="generated-preview" id="compositeOrigPreviewBox">
+        <div class="generated-preview-title">原图合成（调整位置后的原图 + 遮罩文字 270×400）</div>
+        <canvas id="compositeOrigCanvas" width="270" height="400" style="width:60%;display:block;margin:0 auto;"></canvas>
+      </div>
+      <div class="generated-preview" id="guapaiPreviewBox">
+        <div class="generated-preview-title">挂牌合成（三色图贴入背景 540×805）</div>
+        <canvas id="guapaiCanvas" width="540" height="805" style="max-width:100%;display:block;margin:0 auto;"></canvas>
       </div>
 
     </div>
@@ -554,8 +574,13 @@
   <!-- 发送成功 -->
   <div id="sendSuccessOverlay" class="send-success-overlay">
     <div class="send-success-content">
-      <div class="send-success-text">祝福已经发送到你的祝福牌</div>
-      <div class="send-success-time">将在 00:00 分更新</div>
+      <div class="send-success-text">祝福已发送</div>
+      <div class="send-success-hint">请点击图片下载分享</div>
+      <div class="success-imgs">
+        <a id="dlGenerated" download="祝福牌.jpg"><img id="successGeneratedImg" alt="合成预览" /></a>
+        <a id="dlOrig" download="原图合成.png"><img id="successOrigImg" alt="原图合成" /></a>
+        <a id="dlGuapai" download="挂牌合成.jpg"><img id="successGuapaiImg" alt="挂牌合成" /></a>
+      </div>
     </div>
   </div>
 
@@ -584,6 +609,10 @@
     const overlayScaledCanvas = document.getElementById('overlayScaledCanvas');
     const compositeSmallPreviewBox = document.getElementById('compositeSmallPreviewBox');
     const compositeSmallCanvas = document.getElementById('compositeSmallCanvas');
+    const compositeOrigPreviewBox = document.getElementById('compositeOrigPreviewBox');
+    const compositeOrigCanvas = document.getElementById('compositeOrigCanvas');
+    const guapaiPreviewBox = document.getElementById('guapaiPreviewBox');
+    const guapaiCanvas = document.getElementById('guapaiCanvas');
 
     // ── URL 参数 ──────────────────────────────────────────────
     const urlParams  = new URLSearchParams(window.location.search);
@@ -599,6 +628,7 @@
     let sourcePhotoImg = null;  // 缓存原始照片 Image 对象（未经滤镜处理）
     let currentPhotoFilter = 'bwred';
     let lastGeneratedImageBlob = null;
+    let guapaiBgImg = null;  // 缓存挂牌背景图
 
     function clamp(n, min, max) {
       n = Number(n);
@@ -807,9 +837,30 @@
       });
     }
 
-    function showPhoto(url) {
+    function showPhoto(url, resetTransform = false) {
       photoImg.onload = () => {
-        fitPhotoCover();
+        if (resetTransform) {
+          fitPhotoCover();
+        } else {
+          // 保留当前 transform，仅更新图片尺寸（宽高保持一致的 cover 比例）
+          const pc = document.getElementById('photoContainer');
+          const cw = pc.clientWidth, ch = pc.clientHeight;
+          const iw = photoImg.naturalWidth, ih = photoImg.naturalHeight;
+          if (iw && ih && cw && ch) {
+            const srcRatio = iw / ih;
+            const dstRatio = cw / ch;
+            let dispW, dispH;
+            if (srcRatio > dstRatio) { dispH = ch; dispW = ch * srcRatio; }
+            else { dispW = cw; dispH = cw / srcRatio; }
+            photoImg.style.width = dispW + 'px';
+            photoImg.style.height = dispH + 'px';
+            photoTransform.baseW = dispW;
+            photoTransform.baseH = dispH;
+            photoTransform.containerW = cw;
+            photoTransform.containerH = ch;
+            clampTransform();
+          }
+        }
         applyPhotoTransform();
       };
       photoImg.src = url;
@@ -850,12 +901,12 @@
       photoTransform.scale = 1;
     }
 
-    function renderPhotoByFilter(filter) {
+    function renderPhotoByFilter(filter, resetTransform = false) {
       setActiveFilter(filter);
       if (!sourcePhotoDataUrl) return;
 
       if (filter === 'original') {
-        showPhoto(sourcePhotoDataUrl);
+        showPhoto(sourcePhotoDataUrl, false);
         return;
       }
 
@@ -902,7 +953,7 @@
         }
 
         ctx.putImageData(imageData, 0, 0);
-        showPhoto(cv.toDataURL('image/png'));
+        showPhoto(cv.toDataURL('image/png'), resetTransform);
       };
       tmpImg.src = sourcePhotoDataUrl;
     }
@@ -974,7 +1025,7 @@
         origImg.onload = () => {
           sourcePhotoImg = origImg;
           setActiveFilter('bwred');
-          renderPhotoByFilter(currentPhotoFilter || 'bwred');
+          renderPhotoByFilter(currentPhotoFilter || 'bwred', true);
         };
         origImg.src = sourcePhotoDataUrl;
       };
@@ -987,6 +1038,17 @@
     let lastPinchDist = 0;
     let dragStartX = 0, dragStartY = 0;
     let dragStartTx = 0, dragStartTy = 0;
+
+    /** 限制 tx/ty 使图片四边不进入容器内（始终覆盖容器） */
+    function clampTransform() {
+      const { scale, baseW, baseH, containerW, containerH } = photoTransform;
+      const renderedW = baseW * scale;
+      const renderedH = baseH * scale;
+      const minTx = containerW - renderedW;
+      const minTy = containerH - renderedH;
+      photoTransform.tx = Math.min(0, Math.max(minTx, photoTransform.tx));
+      photoTransform.ty = Math.min(0, Math.max(minTy, photoTransform.ty));
+    }
 
     function applyPhotoTransform() {
       photoImg.style.transform = `translate(${photoTransform.tx}px, ${photoTransform.ty}px) scale(${photoTransform.scale})`;
@@ -1049,6 +1111,7 @@
 
         lastPinchDist = newDist;
       }
+      clampTransform();
       applyPhotoTransform();
     });
 
@@ -1130,6 +1193,17 @@
         const dctx = ditheredPreviewCanvas.getContext('2d');
         dctx.drawImage(ditheredCanvas, 0, 0);
 
+        // 预加载挂牌背景（缓存，避免重复请求）
+        if (!guapaiBgImg) {
+          guapaiBgImg = await new Promise(resolve => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(null);
+            img.src = 'https://gl99.top/qfp/img/guapai.jpg';
+          });
+        }
+
         // 遮罩+文字层缩放到 270×400（保持透明）
         const overlayImg = new Image();
         overlayImg.onload = () => {
@@ -1147,6 +1221,22 @@
           cctx.drawImage(ditheredCanvas, 0, 0);
           cctx.drawImage(overlayScaledCanvas, 0, 0);
           compositeSmallPreviewBox.classList.add('show');
+
+          // 原图合成：调整位置后的原图 + 遮罩文字（540×800，与 buildOutputCanvas 同品质）
+          buildCompositeOrigCanvas();
+          compositeOrigPreviewBox.classList.add('show');
+
+          // 挂牌背景合成：540×805 背景 + 合成预览图缩小至 240×356
+          if (guapaiBgImg) {
+            guapaiCanvas.width = 540;
+            guapaiCanvas.height = 805;
+            const gpctx = guapaiCanvas.getContext('2d');
+            gpctx.drawImage(guapaiBgImg, 0, 0, 540, 805);
+            const scaledW = 240;
+            const scaledH = Math.round(800 * 240 / 540);
+            gpctx.drawImage(generatedPreviewImg, 160, 255, scaledW, scaledH);
+            guapaiPreviewBox.classList.add('show');
+          }
         };
         overlayImg.src = URL.createObjectURL(overlayOnlyBlob);
 
@@ -1342,6 +1432,94 @@
       return cv;
     }
 
+    function buildCompositeOrigCanvas() {
+      const frame = document.getElementById('frame');
+      const maskImg = document.getElementById('maskImg');
+      const FW = 270, FH = 400;
+      const OUTPUT_W = 540, OUTPUT_H = 800;
+      const SCALE = OUTPUT_W / FW;
+      compositeOrigCanvas.width = OUTPUT_W;
+      compositeOrigCanvas.height = OUTPUT_H;
+      const ctx = compositeOrigCanvas.getContext('2d');
+      ctx.scale(SCALE, SCALE);
+      const frameRect = frame.getBoundingClientRect();
+      const scaleX = FW / frameRect.width;
+      const scaleY = FH / frameRect.height;
+      const geomScale = Math.min(scaleX, scaleY);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, FW, FH);
+      if (sourcePhotoImg) {
+        const pc = document.getElementById('photoContainer');
+        const pcr = pc.getBoundingClientRect();
+        const dx = (pcr.left - frameRect.left) * scaleX;
+        const dy = (pcr.top  - frameRect.top)  * scaleY;
+        const dw = pcr.width  * scaleX;
+        const dh = pcr.height * scaleY;
+        try { drawImageWithTransform(ctx, sourcePhotoImg, dx, dy, dw, dh); } catch(_) {}
+      }
+      if (maskImg.naturalWidth) {
+        try { ctx.drawImage(maskImg, 0, 0, FW, FH); } catch(_) {}
+      }
+      frame.querySelectorAll('.text-layer').forEach(layer => {
+        if (layer.style.display === 'none') return;
+        const sp = layer.firstElementChild;
+        if (!sp || !sp.textContent.trim()) return;
+        const lr = layer.getBoundingClientRect();
+        const lx = (lr.left - frameRect.left) * scaleX;
+        const ly = (lr.top  - frameRect.top)  * scaleY;
+        const lw = lr.width  * scaleX;
+        const lh = lr.height * scaleY;
+        const cs = getComputedStyle(layer);
+        ctx.save();
+        const mat = cs.transform;
+        if (mat && mat !== 'none') {
+          const m = mat.match(/matrix\(([^)]+)\)/);
+          if (m) {
+            const vals = m[1].split(',').map(Number);
+            const angle = Math.atan2(vals[1], vals[0]);
+            if (Math.abs(angle) > 0.001) {
+              const cx = lx + lw/2, cy = ly + lh/2;
+              ctx.translate(cx, cy); ctx.rotate(angle); ctx.translate(-cx, -cy);
+            }
+          }
+        }
+        const bgColor = cs.backgroundColor;
+        if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+          const r = (parseFloat(cs.borderRadius) || 0) * geomScale;
+          ctx.fillStyle = bgColor;
+          ctx.beginPath();
+          ctx.roundRect ? ctx.roundRect(lx, ly, lw, lh, r) : ctx.rect(lx, ly, lw, lh);
+          ctx.fill();
+        }
+        ctx.beginPath(); ctx.rect(lx, ly, lw, lh); ctx.clip();
+        const fontSize   = (parseFloat(cs.fontSize) || 20) * geomScale;
+        const color      = cs.color || '#111111';
+        const fontFamily = cs.fontFamily || 'sans-serif';
+        const sw2 = (parseFloat(cs.webkitTextStrokeWidth) || 0) * geomScale;
+        const sc  = cs.webkitTextStrokeColor || '#000000';
+        ctx.font = `${fontSize}px ${fontFamily}`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = color;
+        const text = sp.textContent;
+        const range = document.createRange();
+        for (let i = 0; i < text.length; i++) {
+          range.setStart(sp.firstChild || sp, i);
+          range.setEnd(sp.firstChild || sp, i + 1);
+          const cr = range.getBoundingClientRect();
+          const cx = (cr.left - frameRect.left + cr.width  / 2) * scaleX;
+          const cy = (cr.top  - frameRect.top  + cr.height / 2) * scaleY;
+          if (sw2 > 0) {
+            ctx.save();
+            ctx.strokeStyle = sc; ctx.lineWidth = sw2 * 2; ctx.lineJoin = 'round';
+            ctx.strokeText(text[i], cx, cy);
+            ctx.restore();
+          }
+          ctx.fillText(text[i], cx, cy);
+        }
+        ctx.restore();
+      });
+    }
+
     function buildImageBlob() {
       return new Promise((resolve, reject) => {
         try {
@@ -1516,6 +1694,22 @@
         const cctx = compositeSmallCanvas.getContext('2d');
         cctx.drawImage(ditheredCanvas, 0, 0);
         cctx.drawImage(overlayScaledCanvas, 0, 0);
+      }
+
+      // 原图合成刷新
+      if (compositeOrigPreviewBox.classList.contains('show')) {
+        buildCompositeOrigCanvas();
+      }
+
+      // 挂牌背景合成刷新
+      if (guapaiPreviewBox.classList.contains('show') && guapaiBgImg && generatedPreviewImg.src) {
+        guapaiCanvas.width = 540;
+        guapaiCanvas.height = 805;
+        const gpctx = guapaiCanvas.getContext('2d');
+        gpctx.drawImage(guapaiBgImg, 0, 0, 540, 805);
+        const scaledW = 240;
+        const scaledH = Math.round(800 * 240 / 540);
+        gpctx.drawImage(generatedPreviewImg, 160, 255, scaledW, scaledH);
       }
 
     }
@@ -1709,6 +1903,27 @@
       try {
         await uploadBlessing();
         document.querySelector('.wrap').style.display = 'none';
+        // 生成日期前缀
+        const _d = new Date();
+        const _datePrefix = `${_d.getFullYear()}年${_d.getMonth()+1}月${_d.getDate()}日`;
+        // 填充三张图并设置下载链接
+        const sgi = document.getElementById('successGeneratedImg');
+        sgi.src = generatedPreviewImg.src;
+        const dlGen = document.getElementById('dlGenerated');
+        dlGen.href = generatedPreviewImg.src;
+        dlGen.download = _datePrefix + '祝福分享.jpg';
+        const soImg = document.getElementById('successOrigImg');
+        const soUrl = compositeOrigCanvas.toDataURL('image/png');
+        soImg.src = soUrl;
+        const dlOrig = document.getElementById('dlOrig');
+        dlOrig.href = soUrl;
+        dlOrig.download = _datePrefix + '祝福分享彩.png';
+        const sgpImg = document.getElementById('successGuapaiImg');
+        const sgpUrl = guapaiCanvas.toDataURL('image/jpeg', 0.92);
+        sgpImg.src = sgpUrl;
+        const dlGuapai = document.getElementById('dlGuapai');
+        dlGuapai.href = sgpUrl;
+        dlGuapai.download = _datePrefix + '祝福挂牌.jpg';
         document.getElementById('sendSuccessOverlay').classList.add('show');
       } catch (error) {
         alert(error.message || '上传失败');
