@@ -1307,6 +1307,136 @@
       }
     });
 
+    /* ── 将所有可见文字区渲染到 canvas（用于生成缩略图）── */
+    function drawZonesOnCanvas(ctx) {
+      function roundRectPath(x, y, w, h, r) {
+        r = Math.min(r, w / 2, h / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.arcTo(x + w, y, x + w, y + r, r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+        ctx.lineTo(x + r, y + h);
+        ctx.arcTo(x, y + h, x, y + h - r, r);
+        ctx.lineTo(x, y + r);
+        ctx.arcTo(x, y, x + r, y, r);
+        ctx.closePath();
+      }
+      function wrapText(text, maxWidth) {
+        const lines = [];
+        const chars = [...text];
+        let current = '';
+        for (const char of chars) {
+          const test = current + char;
+          if (ctx.measureText(test).width > maxWidth && current !== '') {
+            lines.push(current);
+            current = char;
+          } else {
+            current = test;
+          }
+        }
+        if (current !== '') lines.push(current);
+        return lines.length ? lines : [''];
+      }
+
+      document.querySelectorAll('.field-card').forEach(card => {
+        const layerId = card.dataset.layer;
+        const layerEl = document.getElementById(layerId);
+        if (!layerEl || layerEl.style.display === 'none') return;
+        const sp = layerEl.firstElementChild;
+        const text = sp ? sp.textContent : '';
+        if (!text) return;
+
+        const zx = parseInt(card.querySelector('.field-x').value) || 0;
+        const zy = parseInt(card.querySelector('.field-y').value) || 0;
+        const zw = parseInt(card.querySelector('.field-w').value) || 100;
+        const zh = parseInt(card.querySelector('.field-h').value) || 50;
+        const fontVal    = card.querySelector('.field-font').value;
+        const fontSize   = parseInt(card.querySelector('.field-size').value) || 20;
+        const fontFamily = (fontVal === 'default') ? 'sans-serif' : (loadedFonts[fontVal] || fontVal);
+        const spacing    = parseFloat(card.querySelector('.field-spacing').value) || 0;
+        const lineH      = parseFloat(card.querySelector('.field-line-spacing').value) || 1.3;
+        const color      = card.querySelector('.color-row button.active')?.dataset.color || '#111111';
+        const bgc        = card.querySelector('.bgc-row button.active')?.dataset.bgc || 'transparent';
+        const dir        = card.querySelector('.dir-row button.active')?.dataset.dir || 'h';
+        const rotate     = parseFloat(card.querySelector('.field-rotate').value) || 0;
+        const strokeW    = parseFloat(card.querySelector('.field-stroke-w').value) || 0;
+        const strokeC    = card.querySelector('.field-stroke-c').value || '#000000';
+        const radius     = parseInt(card.querySelector('.field-radius').value) || 0;
+        const alignH     = card.querySelector('.field-align-h').value;
+        const alignV     = card.querySelector('.field-align-v').value;
+
+        ctx.save();
+        if (rotate !== 0) {
+          const cx = zx + zw / 2, cy = zy + zh / 2;
+          ctx.translate(cx, cy);
+          ctx.rotate(rotate * Math.PI / 180);
+          ctx.translate(-cx, -cy);
+        }
+
+        // 背景
+        if (bgc && bgc !== 'transparent') {
+          ctx.fillStyle = bgc;
+          roundRectPath(zx, zy, zw, zh, radius);
+          ctx.fill();
+        }
+
+        ctx.font = `${fontSize}px "${fontFamily}"`;
+        if ('letterSpacing' in ctx) ctx.letterSpacing = spacing + 'px';
+        const lineHeight = fontSize * lineH;
+
+        if (dir === 'v') {
+          // 竖排：按列从左到右，每列从上到下
+          const charsPerCol = Math.max(1, Math.floor(zh / lineHeight));
+          const chars = [...text];
+          const cols = [];
+          for (let i = 0; i < chars.length; i += charsPerCol)
+            cols.push(chars.slice(i, i + charsPerCol));
+          const totalW = cols.length * lineHeight;
+          let startX = (alignH === 'flex-start') ? zx
+                     : (alignH === 'flex-end')   ? zx + zw - totalW
+                     : zx + (zw - totalW) / 2;
+          ctx.textBaseline = 'top';
+          ctx.textAlign = 'center';
+          cols.forEach((col, ci) => {
+            const colX = startX + ci * lineHeight + lineHeight / 2;
+            col.forEach((char, ri) => {
+              const charY = zy + ri * lineHeight;
+              if (strokeW > 0) {
+                ctx.strokeStyle = strokeC; ctx.lineWidth = strokeW * 2; ctx.lineJoin = 'round';
+                ctx.strokeText(char, colX, charY);
+              }
+              ctx.fillStyle = color;
+              ctx.fillText(char, colX, charY);
+            });
+          });
+        } else {
+          // 横排：自动折行
+          ctx.textBaseline = 'top';
+          const lines = wrapText(text, zw);
+          const totalH = lines.length * lineHeight;
+          const startY = (alignV === 'flex-start') ? zy
+                       : (alignV === 'flex-end')   ? zy + zh - totalH
+                       : zy + (zh - totalH) / 2;
+          lines.forEach((line, i) => {
+            const lineY = startY + i * lineHeight;
+            let lineX;
+            if (alignH === 'flex-start')      { ctx.textAlign = 'left';   lineX = zx; }
+            else if (alignH === 'flex-end')   { ctx.textAlign = 'right';  lineX = zx + zw; }
+            else                              { ctx.textAlign = 'center'; lineX = zx + zw / 2; }
+            if (strokeW > 0) {
+              ctx.strokeStyle = strokeC; ctx.lineWidth = strokeW * 2; ctx.lineJoin = 'round';
+              ctx.strokeText(line, lineX, lineY);
+            }
+            ctx.fillStyle = color;
+            ctx.fillText(line, lineX, lineY);
+          });
+        }
+        ctx.restore();
+      });
+    }
+
     async function doPubOrUpdate(targetId, isSaveAs = false) {
       const name   = pubName.value.trim();
       const typeId = pubType.value;
@@ -1334,6 +1464,8 @@
         if (imgMask.naturalWidth) {
           try { ctx.drawImage(imgMask, 0, 0, W, H); } catch (_) {}
         }
+        // 将文字区域渲染到缩略图
+        drawZonesOnCanvas(ctx);
         const thumbBlob = await new Promise(resolve => cv.toBlob(resolve, 'image/png'));
 
         const fd = new FormData();
@@ -1434,6 +1566,7 @@
         const src = '../' + data.bg_img;
         const tmpImg = new Image();
         tmpImg.crossOrigin = 'anonymous';
+        tmpImg.crossOrigin = 'anonymous';
         tmpImg.onload = function () {
           const cv = document.createElement('canvas');
           cv.width = tmpImg.naturalWidth; cv.height = tmpImg.naturalHeight;
@@ -1463,6 +1596,7 @@
 
       /* ── 恢复遮罩图 ── */
       if (data.top_img) {
+        imgMask.crossOrigin = 'anonymous';
         imgMask.src = '../' + data.top_img;
         imgMask.style.display = 'block';
       }
