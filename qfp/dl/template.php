@@ -38,21 +38,28 @@ function h(string $v): string {
 // ── AJAX GET: 列出已发布模板 ────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'list') {
     header('Content-Type: application/json; charset=utf-8');
-    $rows = $pdo->query("SELECT id, name, tpl_name, bg_img, top_img, thumb_img, config FROM templates WHERE config != '' ORDER BY created_at ASC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $pdo->query("SELECT id, type_id, name, tpl_name, bg_img, top_img, thumb_img, config FROM templates WHERE config != '' ORDER BY created_at ASC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
     $result = [];
     foreach ($rows as $r) {
         $label = trim((string)($r['tpl_name'] ?? '')) ?: trim((string)($r['name'] ?? ''));
         $thumb = trim((string)($r['thumb_img'] ?? ''));
         if ($thumb === '') $thumb = trim((string)($r['bg_img'] ?? ''));
+        // 追加文件修改时间作为版本号，防止浏览器使用旧缓存
+        if ($thumb !== '') {
+            $absThumb = __DIR__ . '/' . $thumb;
+            $mtime = @filemtime($absThumb);
+            $thumb .= '?v=' . ($mtime ?: time());
+        }
         $cfg  = json_decode((string)($r['config'] ?? ''), true);
         $kind = (string)($cfg['kind'] ?? '');
         $result[] = [
-            'id'    => (int)$r['id'],
-            'name'  => $label,
-            'thumb' => $thumb,
-            'bg'    => (string)($r['bg_img'] ?? ''),
-            'top'   => (string)($r['top_img'] ?? ''),
-            'kind'  => $kind,
+            'id'      => (int)$r['id'],
+            'name'    => $label,
+            'thumb'   => $thumb,
+            'bg'      => (string)($r['bg_img'] ?? ''),
+            'top'     => (string)($r['top_img'] ?? ''),
+            'kind'    => $kind,
+            'type_id' => (int)$r['type_id'],
         ];
     }
     echo json_encode($result);
@@ -664,9 +671,11 @@ foreach ($allTemplates as $tpl) {
                             <?php foreach ($typeTpls as $tpl): ?>
                                 <?php
                                 $configArr = json_decode((string)($tpl['config'] ?? ''), true);
-                                $isPhoto   = ($configArr['kind'] ?? '') === 'photo';
-                                if ($isPhoto) {
+                                $tplKind   = $configArr['kind'] ?? '';
+                                if ($tplKind === 'photo') {
                                     $tplLink = 'template/pic_create.html?template_id=' . (int)$tpl['id'];
+                                } elseif ($tplKind === 'custom') {
+                                    $tplLink = 'template/custom_create.html?template_id=' . (int)$tpl['id'];
                                 } else {
                                     $tplLink = 'template/create.html?template_id=' . (int)$tpl['id']
                                         . '&bg='  . urlencode((string)($tpl['bg_img']  ?? ''))
@@ -680,9 +689,10 @@ foreach ($allTemplates as $tpl) {
                                     <?php
                                         $thumbSrc = trim((string)($tpl['thumb_img'] ?? ''));
                                         if ($thumbSrc === '') $thumbSrc = trim((string)($tpl['bg_img'] ?? ''));
+                                        $thumbVer = $thumbSrc !== '' ? (@filemtime(__DIR__ . '/' . $thumbSrc) ?: time()) : 0;
                                     ?>
                                     <?php if ($thumbSrc !== ''): ?>
-                                        <img class="tpl-thumb" src="<?= h($thumbSrc); ?>?t=<?= (int)$tpl['created_at']; ?>" alt="">
+                                        <img class="tpl-thumb" src="<?= h($thumbSrc); ?>?v=<?= $thumbVer; ?>" alt="">
                                     <?php else: ?>
                                         <div class="tpl-thumb-ph">无图</div>
                                     <?php endif; ?>
@@ -763,6 +773,9 @@ foreach ($allTemplates as $tpl) {
                 </label>
                 <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;">
                     <input type="radio" name="ntp-kind" value="photo"> 照片模板
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;">
+                    <input type="radio" name="ntp-kind" value="custom"> 自定义图文
                 </label>
             </div>
             <div id="ntp-err" style="color:#dc2626;font-size:13px;min-height:18px;"></div>
@@ -879,6 +892,11 @@ document.getElementById('form-new-template').addEventListener('submit', async fu
         if (kind === 'photo') {
             // 照片模板：直接跳转到 pic_create.html
             location.href = 'template/pic_create.html?template_id=' + _newTplId;
+            return;
+        }
+        if (kind === 'custom') {
+            // 自定义图文：直接跳转到 custom_create.html
+            location.href = 'template/custom_create.html?template_id=' + _newTplId;
             return;
         }
 

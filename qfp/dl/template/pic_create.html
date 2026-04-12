@@ -79,12 +79,13 @@
       overflow: hidden;
       /* 默认全覆盖，JS 会根据输入覆盖 */
       left: 0; top: 0; width: 100%; height: 100%;
+      touch-action: none;
     }
     #imgSample {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+      position: absolute;
       display: block;
+      transform-origin: 0 0;
+      touch-action: none;
     }
     /* 遮罩图（上层，png 透明）*/
     #imgMask {
@@ -481,6 +482,30 @@
       min-height: 16px;
       margin-top: 4px;
     }
+
+    /* 示例图滤镜工具栏 */
+    .sample-toolbar {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .sample-toolbar button {
+      flex: 1;
+      padding: 9px 0;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .sample-toolbar .filter-btn.active {
+      background: #d1242f;
+      border-color: #d1242f;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -504,6 +529,12 @@
       </div>
       <img id="imgMask" alt="遮罩图片" style="display:none" />
       <div id="guideBox"></div>
+    </div>
+
+    <!-- 示例图滤镜工具栏 -->
+    <div class="sample-toolbar" id="sampleToolbar" style="display:none">
+      <button type="button" class="filter-btn active" data-filter="red">红</button>
+      <button type="button" class="filter-btn" data-filter="bwred">黑白虹</button>
     </div>
 
     <!-- 示例图容器坐标 -->
@@ -584,6 +615,139 @@
     }
     [inX, inY, inW, inH].forEach(el => el.addEventListener('input', applyPosition));
     applyPosition();
+
+    /* ── 示例图：原始数据 / 滤镜 / 触摸缩放平移 ── */
+    let sourcePhotoDataUrl = '';
+    let currentPhotoFilter = 'red';
+
+    const imgSample = document.getElementById('imgSample');
+
+    // 状态
+    const sampleTf = { scale: 1, tx: 0, ty: 0, baseW: 0, baseH: 0, cW: 0, cH: 0 };
+    const samplePtrs = new Map();
+    let sPinchDist = 0, sDragX = 0, sDragY = 0, sDragTx = 0, sDragTy = 0;
+
+    function fitSampleCover() {
+      const cw = sampleContainer.clientWidth, ch = sampleContainer.clientHeight;
+      const iw = imgSample.naturalWidth,      ih = imgSample.naturalHeight;
+      if (!iw || !ih || !cw || !ch) return;
+      const s = iw / ih > cw / ch
+              ? { w: ch * (iw / ih), h: ch }
+              : { w: cw, h: cw * (ih / iw) };
+      imgSample.style.width  = s.w + 'px';
+      imgSample.style.height = s.h + 'px';
+      sampleTf.baseW = s.w; sampleTf.baseH = s.h;
+      sampleTf.cW = cw; sampleTf.cH = ch;
+      sampleTf.tx = (cw - s.w) / 2;
+      sampleTf.ty = (ch - s.h) / 2;
+      sampleTf.scale = 1;
+    }
+    function clampSampleTf() {
+      const rW = sampleTf.baseW * sampleTf.scale, rH = sampleTf.baseH * sampleTf.scale;
+      sampleTf.tx = Math.min(0, Math.max(sampleTf.cW - rW, sampleTf.tx));
+      sampleTf.ty = Math.min(0, Math.max(sampleTf.cH - rH, sampleTf.ty));
+    }
+    function applyPhotoTransform() {
+      imgSample.style.transform = `translate(${sampleTf.tx}px,${sampleTf.ty}px) scale(${sampleTf.scale})`;
+    }
+
+    function renderSampleByFilter(filter, resetTransform) {
+      currentPhotoFilter = filter;
+      document.querySelectorAll('#sampleToolbar .filter-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.filter === filter));
+      if (!sourcePhotoDataUrl) return;
+      const tmp = new Image();
+      tmp.onload = function () {
+        const cv = document.createElement('canvas');
+        cv.width = tmp.naturalWidth; cv.height = tmp.naturalHeight;
+        const ctx2 = cv.getContext('2d');
+        ctx2.drawImage(tmp, 0, 0);
+        const imgData = ctx2.getImageData(0, 0, cv.width, cv.height);
+        const d = imgData.data, src = new Uint8ClampedArray(d);
+        for (let i = 0; i < d.length; i += 4) {
+          const r = src[i], g = src[i+1], b = src[i+2];
+          const v = r * 0.299 + g * 0.587 + b * 0.114;
+          const t = v / 255;
+          const mR = Math.round(211 + (255 - 211) * t);
+          const mG = Math.round( 36 + (255 -  36) * t);
+          const mB = Math.round( 47 + (255 -  47) * t);
+          if (filter === 'red') {
+            d[i] = mR; d[i+1] = mG; d[i+2] = mB;
+          } else { /* bwred */
+            const redDom = Math.max(0, r - Math.max(g, b));
+            const sat    = Math.max(r, g, b) - Math.min(r, g, b);
+            const w2 = Math.min(1, Math.max(0, (redDom - 10) / 110)) * Math.min(1, (sat + 20) / 140);
+            d[i]   = Math.round(v * (1 - w2) + mR * w2);
+            d[i+1] = Math.round(v * (1 - w2) + mG * w2);
+            d[i+2] = Math.round(v * (1 - w2) + mB * w2);
+          }
+        }
+        ctx2.putImageData(imgData, 0, 0);
+        cv.toBlob(blob => {
+          const url = URL.createObjectURL(blob);
+          imgSample.onload = () => {
+            URL.revokeObjectURL(url);
+            if (resetTransform) fitSampleCover();
+            applyPhotoTransform();
+          };
+          imgSample.src = url;
+          imgSample.style.display = 'block';
+        }, 'image/png');
+      };
+      tmp.src = sourcePhotoDataUrl;
+    }
+
+    // 触摸/鼠标缩放平移
+    sampleContainer.addEventListener('pointerdown', e => {
+      if (!sourcePhotoDataUrl) return;
+      e.preventDefault();
+      sampleContainer.setPointerCapture(e.pointerId);
+      samplePtrs.set(e.pointerId, e);
+      if (samplePtrs.size === 1) {
+        sDragX = e.clientX; sDragY = e.clientY;
+        sDragTx = sampleTf.tx; sDragTy = sampleTf.ty;
+      } else if (samplePtrs.size === 2) {
+        const [p1, p2] = [...samplePtrs.values()];
+        const dx = p1.clientX - p2.clientX, dy = p1.clientY - p2.clientY;
+        sPinchDist = Math.sqrt(dx*dx + dy*dy);
+      }
+    });
+    sampleContainer.addEventListener('pointermove', e => {
+      if (!samplePtrs.has(e.pointerId)) return;
+      samplePtrs.set(e.pointerId, e);
+      if (samplePtrs.size === 1) {
+        sampleTf.tx = sDragTx + (e.clientX - sDragX);
+        sampleTf.ty = sDragTy + (e.clientY - sDragY);
+      } else if (samplePtrs.size === 2) {
+        const [p1, p2] = [...samplePtrs.values()];
+        const dx = p1.clientX - p2.clientX, dy = p1.clientY - p2.clientY;
+        const newDist = Math.sqrt(dx*dx + dy*dy);
+        const newScale = Math.max(1, Math.min(8, sampleTf.scale * (newDist / sPinchDist)));
+        const rect = sampleContainer.getBoundingClientRect();
+        const cx = (p1.clientX + p2.clientX) / 2 - rect.left;
+        const cy = (p1.clientY + p2.clientY) / 2 - rect.top;
+        const ratio = newScale / sampleTf.scale;
+        sampleTf.tx = cx - ratio * (cx - sampleTf.tx);
+        sampleTf.ty = cy - ratio * (cy - sampleTf.ty);
+        sampleTf.scale = newScale;
+        sPinchDist = newDist;
+      }
+      clampSampleTf(); applyPhotoTransform();
+    });
+    function samplePtrEnd(e) {
+      samplePtrs.delete(e.pointerId);
+      if (samplePtrs.size === 1) {
+        const r = [...samplePtrs.values()][0];
+        sDragX = r.clientX; sDragY = r.clientY;
+        sDragTx = sampleTf.tx; sDragTy = sampleTf.ty;
+      }
+    }
+    sampleContainer.addEventListener('pointerup',     samplePtrEnd);
+    sampleContainer.addEventListener('pointercancel', samplePtrEnd);
+
+    // 滤镜按钮
+    document.querySelectorAll('#sampleToolbar .filter-btn').forEach(btn =>
+      btn.addEventListener('click', () => renderSampleByFilter(btn.dataset.filter, false)));
 
     /* ── 虚线切换 ── */
     document.getElementById('btnDashed').addEventListener('click', function () {
@@ -1168,46 +1332,22 @@
 
     document.getElementById('btnAddDate').addEventListener('click', createDateZone);
 
-    /* ── 文件选择：示例图（载入后去色并转为红白色调）── */
+    /* ── 文件选择：示例图 ── */
     const btnSample  = document.getElementById('btnSample');
     const fileSample = document.getElementById('fileSample');
-    const imgSample  = document.getElementById('imgSample');
 
     btnSample.addEventListener('click', () => fileSample.click());
     fileSample.addEventListener('change', function () {
       const file = this.files[0];
       if (!file) return;
-      const rawUrl = URL.createObjectURL(file);
-      const tmpImg = new Image();
-      tmpImg.onload = function () {
-        URL.revokeObjectURL(rawUrl);
-        const cv  = document.createElement('canvas');
-        cv.width  = tmpImg.naturalWidth;
-        cv.height = tmpImg.naturalHeight;
-        const ctx = cv.getContext('2d');
-        ctx.drawImage(tmpImg, 0, 0);
-        const imageData = ctx.getImageData(0, 0, cv.width, cv.height);
-        const d = imageData.data;
-        /* 去色 → 红白映射
-           灰度 v=0(黑) → 红 #d1242f(211,36,47)
-           灰度 v=255(白) → 白 (255,255,255)，线性插值，alpha 保留 */
-        for (let i = 0; i < d.length; i += 4) {
-          const v = d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114;
-          const t = v / 255;
-          d[i]   = Math.round(211 + (255 - 211) * t);
-          d[i+1] = Math.round( 36 + (255 -  36) * t);
-          d[i+2] = Math.round( 47 + (255 -  47) * t);
-        }
-        ctx.putImageData(imageData, 0, 0);
-        cv.toBlob(blob => {
-          const processedUrl = URL.createObjectURL(blob);
-          imgSample.onload = () => URL.revokeObjectURL(processedUrl);
-          imgSample.src = processedUrl;
-          imgSample.style.display = 'block';
-          checkPublishReady();
-        }, 'image/png');
+      const reader = new FileReader();
+      reader.onload = e => {
+        sourcePhotoDataUrl = e.target.result;
+        document.getElementById('sampleToolbar').style.display = '';
+        renderSampleByFilter(currentPhotoFilter, true);
+        checkPublishReady();
       };
-      tmpImg.src = rawUrl;
+      reader.readAsDataURL(file);
     });
 
     /* ── 文件选择：遮罩图 ── */
@@ -1307,131 +1447,83 @@
       }
     });
 
-    /* ── 将所有可见文字区渲染到 canvas（用于生成缩略图）── */
+    /* ── 将所有可见文字区渲染到 canvas（逐字符读 DOM 位置，与预览完全一致）── */
     function drawZonesOnCanvas(ctx) {
-      function roundRectPath(x, y, w, h, r) {
-        r = Math.min(r, w / 2, h / 2);
-        ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.lineTo(x + w - r, y);
-        ctx.arcTo(x + w, y, x + w, y + r, r);
-        ctx.lineTo(x + w, y + h - r);
-        ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-        ctx.lineTo(x + r, y + h);
-        ctx.arcTo(x, y + h, x, y + h - r, r);
-        ctx.lineTo(x, y + r);
-        ctx.arcTo(x, y, x + r, y, r);
-        ctx.closePath();
-      }
-      function wrapText(text, maxWidth) {
-        const lines = [];
-        const chars = [...text];
-        let current = '';
-        for (const char of chars) {
-          const test = current + char;
-          if (ctx.measureText(test).width > maxWidth && current !== '') {
-            lines.push(current);
-            current = char;
-          } else {
-            current = test;
-          }
-        }
-        if (current !== '') lines.push(current);
-        return lines.length ? lines : [''];
-      }
+      const frame = document.getElementById('frame');
+      const frameRect = frame.getBoundingClientRect();
+      const FW = 270, FH = 400;
+      const scaleX = FW / frameRect.width;
+      const scaleY = FH / frameRect.height;
+      const geomScale = Math.min(scaleX, scaleY);
 
-      document.querySelectorAll('.field-card').forEach(card => {
-        const layerId = card.dataset.layer;
-        const layerEl = document.getElementById(layerId);
-        if (!layerEl || layerEl.style.display === 'none') return;
-        const sp = layerEl.firstElementChild;
-        const text = sp ? sp.textContent : '';
-        if (!text) return;
+      frame.querySelectorAll('.text-layer').forEach(layer => {
+        if (layer.style.display === 'none') return;
+        const sp = layer.firstElementChild;
+        if (!sp || !sp.textContent.trim()) return;
 
-        const zx = parseInt(card.querySelector('.field-x').value) || 0;
-        const zy = parseInt(card.querySelector('.field-y').value) || 0;
-        const zw = parseInt(card.querySelector('.field-w').value) || 100;
-        const zh = parseInt(card.querySelector('.field-h').value) || 50;
-        const fontVal    = card.querySelector('.field-font').value;
-        const fontSize   = parseInt(card.querySelector('.field-size').value) || 20;
-        const fontFamily = (fontVal === 'default') ? 'sans-serif' : (loadedFonts[fontVal] || fontVal);
-        const spacing    = parseFloat(card.querySelector('.field-spacing').value) || 0;
-        const lineH      = parseFloat(card.querySelector('.field-line-spacing').value) || 1.3;
-        const color      = card.querySelector('.color-row button.active')?.dataset.color || '#111111';
-        const bgc        = card.querySelector('.bgc-row button.active')?.dataset.bgc || 'transparent';
-        const dir        = card.querySelector('.dir-row button.active')?.dataset.dir || 'h';
-        const rotate     = parseFloat(card.querySelector('.field-rotate').value) || 0;
-        const strokeW    = parseFloat(card.querySelector('.field-stroke-w').value) || 0;
-        const strokeC    = card.querySelector('.field-stroke-c').value || '#000000';
-        const radius     = parseInt(card.querySelector('.field-radius').value) || 0;
-        const alignH     = card.querySelector('.field-align-h').value;
-        const alignV     = card.querySelector('.field-align-v').value;
+        const lr = layer.getBoundingClientRect();
+        const lx = (lr.left - frameRect.left) * scaleX;
+        const ly = (lr.top  - frameRect.top)  * scaleY;
+        const lw = lr.width  * scaleX;
+        const lh = lr.height * scaleY;
+        const cs = getComputedStyle(layer);
 
         ctx.save();
-        if (rotate !== 0) {
-          const cx = zx + zw / 2, cy = zy + zh / 2;
-          ctx.translate(cx, cy);
-          ctx.rotate(rotate * Math.PI / 180);
-          ctx.translate(-cx, -cy);
+
+        // 旋转：从 CSS matrix 提取角度
+        const mat = cs.transform;
+        if (mat && mat !== 'none') {
+          const m = mat.match(/matrix\(([^)]+)\)/);
+          if (m) {
+            const vals = m[1].split(',').map(Number);
+            const angle = Math.atan2(vals[1], vals[0]);
+            if (Math.abs(angle) > 0.001) {
+              const cx = lx + lw / 2, cy = ly + lh / 2;
+              ctx.translate(cx, cy); ctx.rotate(angle); ctx.translate(-cx, -cy);
+            }
+          }
         }
 
-        // 背景
-        if (bgc && bgc !== 'transparent') {
-          ctx.fillStyle = bgc;
-          roundRectPath(zx, zy, zw, zh, radius);
+        // 背景色
+        const bgColor = cs.backgroundColor;
+        if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+          const r = (parseFloat(cs.borderRadius) || 0) * geomScale;
+          ctx.fillStyle = bgColor;
+          ctx.beginPath();
+          ctx.roundRect ? ctx.roundRect(lx, ly, lw, lh, r) : ctx.rect(lx, ly, lw, lh);
           ctx.fill();
         }
 
-        ctx.font = `${fontSize}px "${fontFamily}"`;
-        if ('letterSpacing' in ctx) ctx.letterSpacing = spacing + 'px';
-        const lineHeight = fontSize * lineH;
+        // clip 到文字区域
+        ctx.beginPath();
+        ctx.rect(lx, ly, lw, lh);
+        ctx.clip();
 
-        if (dir === 'v') {
-          // 竖排：按列从左到右，每列从上到下
-          const charsPerCol = Math.max(1, Math.floor(zh / lineHeight));
-          const chars = [...text];
-          const cols = [];
-          for (let i = 0; i < chars.length; i += charsPerCol)
-            cols.push(chars.slice(i, i + charsPerCol));
-          const totalW = cols.length * lineHeight;
-          let startX = (alignH === 'flex-start') ? zx
-                     : (alignH === 'flex-end')   ? zx + zw - totalW
-                     : zx + (zw - totalW) / 2;
-          ctx.textBaseline = 'top';
-          ctx.textAlign = 'center';
-          cols.forEach((col, ci) => {
-            const colX = startX + ci * lineHeight + lineHeight / 2;
-            col.forEach((char, ri) => {
-              const charY = zy + ri * lineHeight;
-              if (strokeW > 0) {
-                ctx.strokeStyle = strokeC; ctx.lineWidth = strokeW * 2; ctx.lineJoin = 'round';
-                ctx.strokeText(char, colX, charY);
-              }
-              ctx.fillStyle = color;
-              ctx.fillText(char, colX, charY);
-            });
-          });
-        } else {
-          // 横排：自动折行
-          ctx.textBaseline = 'top';
-          const lines = wrapText(text, zw);
-          const totalH = lines.length * lineHeight;
-          const startY = (alignV === 'flex-start') ? zy
-                       : (alignV === 'flex-end')   ? zy + zh - totalH
-                       : zy + (zh - totalH) / 2;
-          lines.forEach((line, i) => {
-            const lineY = startY + i * lineHeight;
-            let lineX;
-            if (alignH === 'flex-start')      { ctx.textAlign = 'left';   lineX = zx; }
-            else if (alignH === 'flex-end')   { ctx.textAlign = 'right';  lineX = zx + zw; }
-            else                              { ctx.textAlign = 'center'; lineX = zx + zw / 2; }
-            if (strokeW > 0) {
-              ctx.strokeStyle = strokeC; ctx.lineWidth = strokeW * 2; ctx.lineJoin = 'round';
-              ctx.strokeText(line, lineX, lineY);
-            }
-            ctx.fillStyle = color;
-            ctx.fillText(line, lineX, lineY);
-          });
+        // 逐字符绘制：直接读取 DOM 渲染坐标，与预览完全一致
+        const fontSize   = (parseFloat(cs.fontSize) || 20) * geomScale;
+        const color      = cs.color || '#111111';
+        const fontFamily = cs.fontFamily || 'sans-serif';
+        const sw2 = (parseFloat(cs.webkitTextStrokeWidth) || 0) * geomScale;
+        const sc  = cs.webkitTextStrokeColor || '#000000';
+        ctx.font = `${fontSize}px ${fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = color;
+        const text = sp.textContent;
+        const range = document.createRange();
+        for (let i = 0; i < text.length; i++) {
+          range.setStart(sp.firstChild || sp, i);
+          range.setEnd(sp.firstChild || sp, i + 1);
+          const cr = range.getBoundingClientRect();
+          const cx = (cr.left - frameRect.left + cr.width  / 2) * scaleX;
+          const cy = (cr.top  - frameRect.top  + cr.height / 2) * scaleY;
+          if (sw2 > 0) {
+            ctx.save();
+            ctx.strokeStyle = sc; ctx.lineWidth = sw2 * 2; ctx.lineJoin = 'round';
+            ctx.strokeText(text[i], cx, cy);
+            ctx.restore();
+          }
+          ctx.fillText(text[i], cx, cy);
         }
         ctx.restore();
       });
@@ -1459,7 +1551,23 @@
           const y = parseFloat(document.getElementById('inY').value) || 0;
           const w = parseFloat(document.getElementById('inW').value) || W;
           const h = parseFloat(document.getElementById('inH').value) || H;
-          try { ctx.drawImage(imgSample, x, y, w, h); } catch (_) {}
+          try {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x, y, w, h);
+            ctx.clip();
+            if (sampleTf.baseW > 0 && sampleTf.cW > 0) {
+              const ratio = w / sampleTf.cW;
+              ctx.drawImage(imgSample,
+                x + sampleTf.tx * ratio,
+                y + sampleTf.ty * ratio,
+                sampleTf.baseW * sampleTf.scale * ratio,
+                sampleTf.baseH * sampleTf.scale * ratio);
+            } else {
+              ctx.drawImage(imgSample, x, y, w, h);
+            }
+            ctx.restore();
+          } catch (_) {}
         }
         if (imgMask.naturalWidth) {
           try { ctx.drawImage(imgMask, 0, 0, W, H); } catch (_) {}
@@ -1563,35 +1671,19 @@
 
       /* ── 恢复示例图 ── */
       if (data.bg_img) {
-        const src = '../' + data.bg_img;
         const tmpImg = new Image();
-        tmpImg.crossOrigin = 'anonymous';
         tmpImg.crossOrigin = 'anonymous';
         tmpImg.onload = function () {
           const cv = document.createElement('canvas');
           cv.width = tmpImg.naturalWidth; cv.height = tmpImg.naturalHeight;
-          const ctx = cv.getContext('2d');
-          ctx.drawImage(tmpImg, 0, 0);
-          const id2 = ctx.getImageData(0, 0, cv.width, cv.height);
-          const d = id2.data;
-          for (let i = 0; i < d.length; i += 4) {
-            const v = d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114;
-            const t = v / 255;
-            d[i]   = Math.round(211 + (255 - 211) * t);
-            d[i+1] = Math.round( 36 + (255 -  36) * t);
-            d[i+2] = Math.round( 47 + (255 -  47) * t);
-          }
-          ctx.putImageData(id2, 0, 0);
-          cv.toBlob(blob => {
-            const url = URL.createObjectURL(blob);
-            imgSample.onload = () => URL.revokeObjectURL(url);
-            imgSample.src = url;
-            imgSample.style.display = 'block';
-            // 示例图已有存档，允许发布
-            document.getElementById('btnPublish').disabled = false;
-          }, 'image/png');
+          cv.getContext('2d').drawImage(tmpImg, 0, 0);
+          sourcePhotoDataUrl = cv.toDataURL('image/png');
+          document.getElementById('sampleToolbar').style.display = '';
+          renderSampleByFilter(currentPhotoFilter, true);
+          // 示例图已有存档，允许发布
+          document.getElementById('btnPublish').disabled = false;
         };
-        tmpImg.src = src;
+        tmpImg.src = '../' + data.bg_img;
       }
 
       /* ── 恢复遮罩图 ── */

@@ -217,13 +217,17 @@
       inset: 0;
       background: #0f172a;
       z-index: 9999;
-      justify-content: center;
+      overflow-y: auto;
+      flex-direction: column;
       align-items: center;
     }
     .send-success-overlay.show { display: flex; }
-    .send-success-content { text-align: center; padding: 20px; }
-    .send-success-text { font-size: 20px; color: #fff; margin-bottom: 16px; }
-    .send-success-time { font-size: 16px; color: #d1242f; }
+    .send-success-content { text-align: center; padding: 20px; width: 100%; max-width: 600px; }
+    .send-success-text { font-size: 20px; color: #fff; margin-bottom: 6px; font-weight: 700; }
+    .send-success-hint { font-size: 14px; color: #d1242f; margin-bottom: 20px; }
+    .success-imgs { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+    .success-imgs a { display: block; }
+    .success-imgs img { max-width: 100%; border-radius: 10px; display: block; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); }
 
     /* 加载遮罩 */
     .overlay {
@@ -330,8 +334,12 @@
   <!-- 发送成功提示 -->
   <div id="sendSuccessOverlay" class="send-success-overlay">
     <div class="send-success-content">
-      <div class="send-success-text">祝福已经发送到你的祝福牌</div>
-      <div class="send-success-time">将在 00:00 分更新</div>
+      <div class="send-success-text">祝福已发送</div>
+      <div class="send-success-hint">请点击图片下载分享</div>
+      <div class="success-imgs">
+        <a id="dlGenerated" download="祝福分享.png"><img id="successGeneratedImg" alt="祝福分享" /></a>
+        <a id="dlGuapai" download="祝福挂牌.jpg"><img id="successGuapaiImg" alt="祝福挂牌" /></a>
+      </div>
     </div>
   </div>
 
@@ -347,6 +355,15 @@
   <script>
     const FONT_API = '../../font/dfont.php';
     const loadingOverlay = document.getElementById('loadingOverlay');
+
+    // 预加载挂牌背景图
+    let guapaiBgImg = null;
+    (function () {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => { guapaiBgImg = img; };
+      img.src = 'https://gl99.top/qfp/img/guapai.jpg';
+    })();
 
     // 繁体字体列表
     const TRADITIONAL_FONTS = new Set(['bfs', 'MasaFont-Bold', 'SotyrFangsong-Regular']);
@@ -645,6 +662,90 @@
       return cv;
     }
 
+    /** 合成完整图（背景 + 文字）540×800 */
+    function buildFullCanvas() {
+      const bgImg = document.getElementById('bgImg');
+      const imgR  = bgImg.getBoundingClientRect();
+      const FW = imgR.width;
+      const FH = imgR.height;
+      const OUTPUT_W = 540, OUTPUT_H = 800;
+      const SCALE = OUTPUT_W / FW;
+
+      const cv = document.createElement('canvas');
+      cv.width = OUTPUT_W; cv.height = OUTPUT_H;
+      const ctx = cv.getContext('2d');
+      ctx.scale(SCALE, SCALE);
+
+      // 绘制背景底图
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, FW, FH);
+      if (bgImg.naturalWidth) {
+        try { ctx.drawImage(bgImg, 0, 0, FW, FH); } catch(_) {}
+      }
+
+      // 绘制文字层
+      for (const lid of ['layer_to', 'layer_msg', 'layer_from', 'layer_date']) {
+        const layer = document.getElementById(lid);
+        if (!layer || layer.style.display === 'none') continue;
+        const textNode = layer.firstChild;
+        if (!textNode || textNode.nodeType !== Node.TEXT_NODE) continue;
+        const text = textNode.textContent;
+        if (!text.trim()) continue;
+
+        const lr = layer.getBoundingClientRect();
+        const lx = lr.left - imgR.left;
+        const ly = lr.top  - imgR.top;
+        const lw = lr.width;
+        const lh = lr.height;
+
+        const cs = getComputedStyle(layer);
+        const fontSize  = parseFloat(cs.fontSize)    || 28;
+        const color     = cs.color                   || '#111111';
+        const bgColor   = cs.backgroundColor;
+        const fontFamily = cs.fontFamily             || 'sans-serif';
+        const borderRad = parseFloat(cs.borderRadius) || 0;
+        const strokeW   = parseFloat(cs.webkitTextStrokeWidth) || 0;
+        const strokeC   = cs.webkitTextStrokeColor   || '#000000';
+        const transform = cs.transform;
+
+        ctx.save();
+        if (transform && transform !== 'none') {
+          const m = transform.match(/matrix\(([^)]+)\)/);
+          if (m) {
+            const vals = m[1].split(',').map(Number);
+            const angle = Math.atan2(vals[1], vals[0]);
+            if (Math.abs(angle) > 0.001) {
+              const cx = lx + lw/2, cy = ly + lh/2;
+              ctx.translate(cx, cy); ctx.rotate(angle); ctx.translate(-cx, -cy);
+            }
+          }
+        }
+        if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+          ctx.fillStyle = bgColor;
+          _rrect(ctx, lx, ly, lw, lh, borderRad);
+          ctx.fill();
+        }
+        _rrect(ctx, lx, ly, lw, lh, borderRad);
+        ctx.clip();
+        ctx.font = `${fontSize}px ${fontFamily}`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = color;
+        const range = document.createRange();
+        for (let i = 0; i < textNode.length; i++) {
+          range.setStart(textNode, i); range.setEnd(textNode, i + 1);
+          const cr = range.getBoundingClientRect();
+          const cx = cr.left - imgR.left + cr.width / 2;
+          const cy = cr.top  - imgR.top  + cr.height / 2;
+          if (strokeW > 0) {
+            ctx.save(); ctx.strokeStyle = strokeC; ctx.lineWidth = strokeW * 2; ctx.lineJoin = 'round';
+            ctx.strokeText(text[i], cx, cy); ctx.restore();
+          }
+          ctx.fillText(text[i], cx, cy);
+        }
+        ctx.restore();
+      }
+      return cv;
+    }
+
     // ── 生成祝福牌 ──────────────────────────────────────────────
     const btnGenerate = document.getElementById('btnGenerate');
     const genStatus = document.getElementById('genStatus');
@@ -905,8 +1006,40 @@
       btnSendBlessing.disabled = true;
       btnSendBlessing.textContent = '发送中...';
       try {
+        // 在隐藏预览区之前先合成完整图
+        const fullCanvas = buildFullCanvas();
+
         await uploadBlessing();
         document.querySelector('.wrap').style.display = 'none';
+
+        const _d = new Date();
+        const _datePrefix = `${_d.getFullYear()}年${_d.getMonth()+1}月${_d.getDate()}日`;
+
+        // 祝福分享图（背景 + 文字 540×800）
+        const fullUrl = fullCanvas.toDataURL('image/png');
+        const sgi = document.getElementById('successGeneratedImg');
+        sgi.src = fullUrl;
+        const dlGen = document.getElementById('dlGenerated');
+        dlGen.href = fullUrl;
+        dlGen.download = _datePrefix + '祝福分享.png';
+
+        // 祝福挂牌图（540×805 背景 + 合成图缩小贴入）
+        if (guapaiBgImg) {
+          const gpCv = document.createElement('canvas');
+          gpCv.width = 540; gpCv.height = 805;
+          const gpCtx = gpCv.getContext('2d');
+          gpCtx.drawImage(guapaiBgImg, 0, 0, 540, 805);
+          const scaledW = 240;
+          const scaledH = Math.round(800 * 240 / 540);
+          gpCtx.drawImage(fullCanvas, 0, 0, 540, 800, 160, 255, scaledW, scaledH);
+          const gpUrl = gpCv.toDataURL('image/jpeg', 0.92);
+          const sgpImg = document.getElementById('successGuapaiImg');
+          sgpImg.src = gpUrl;
+          const dlGuapai = document.getElementById('dlGuapai');
+          dlGuapai.href = gpUrl;
+          dlGuapai.download = _datePrefix + '祝福挂牌.jpg';
+        }
+
         sendSuccessOverlay.classList.add('show');
       } catch (error) {
         alert(error.message || '上传失败');

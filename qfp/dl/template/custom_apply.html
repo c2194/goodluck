@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>自定义图文祝福</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121826;
+      --text: #e6edf3;
+      --muted: #9aa4b2;
+      --border: rgba(255,255,255,0.10);
+      --btn: #1f6feb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap { padding: 12px; max-width: 600px; margin: 0 auto; }
+
+    /* 预览框 */
+    .frame {
+      width: 100%;
+      aspect-ratio: 270 / 400;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      position: relative;
+      user-select: none;
+    }
+    .frame img#bgImg {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .text-layer {
+      position: absolute;
+      z-index: 5;
+      font-size: 28px;
+      line-height: 1.3;
+      white-space: pre-wrap;
+      word-break: break-word;
+      pointer-events: none;
+      display: none;
+      padding: 0;
+      overflow: hidden;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      paint-order: stroke fill;
+    }
+
+    /* 字段卡片 */
+    .field-card {
+      margin-top: 14px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .field-card .field-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .field-card .field-title .limit {
+      font-size: 11px;
+      color: #555;
+      font-weight: 400;
+      margin-left: 4px;
+    }
+    .field-card input[type="text"],
+    .field-card input[type="date"] {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 16px;
+      line-height: 1.3;
+      outline: none;
+    }
+    .field-card input:focus {
+      border-color: rgba(31,111,235,0.7);
+      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .field-card input::placeholder { color: #555; }
+    input[type="text"], input[type="date"], textarea {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    .btn-generate {
+      margin-top: 16px;
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #3068ff, #5a8cff);
+      color: #fff;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn-generate:disabled { opacity: .5; cursor: default; }
+
+    .field-status {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    /* 录音 */
+    .record-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .record-btn {
+      width: 96px; height: 96px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--panel);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .record-btn:hover { border-color: #d1242f; background: rgba(209,36,47,0.1); }
+    .record-btn:active { transform: scale(0.95); }
+    .record-btn.recording {
+      border-color: #d1242f;
+      background: rgba(209,36,47,0.2);
+      animation: pulse 1s infinite;
+    }
+    .record-btn.recording svg path { fill: #d1242f; }
+    @keyframes pulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(209,36,47,0.4); }
+      50%     { box-shadow: 0 0 0 10px rgba(209,36,47,0); }
+    }
+    .record-progress {
+      display: none; width: 80px; height: 6px;
+      background: rgba(255,255,255,0.1); border-radius: 3px;
+      margin-bottom: 10px; position: relative; overflow: hidden;
+    }
+    .record-progress.show { display: block; }
+    .record-progress-bar { height: 100%; background: #d1242f; border-radius: 3px; width: 100%; transition: width 0.1s linear; }
+    .record-timer { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #d1242f; font-weight: bold; }
+    .record-hint { margin-top: 10px; font-size: 12px; color: var(--muted); }
+
+    /* 发送祝福按钮 */
+    .send-section { margin-top: 20px; display: flex; justify-content: center; }
+    .send-btn {
+      background: #8b0000; color: #fff; border: none;
+      border-radius: 12px; padding: 14px 40px;
+      font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.2s ease;
+    }
+    .send-btn:hover { background: #a00000; }
+    .send-btn:active { transform: scale(0.98); }
+
+    /* 发送成功提示 */
+    .send-success-overlay {
+      display: none; position: fixed; inset: 0;
+      background: #0f172a; z-index: 9999;
+      overflow-y: auto;
+      flex-direction: column;
+      align-items: center;
+    }
+    .send-success-overlay.show { display: flex; }
+    .send-success-content { text-align: center; padding: 20px; width: 100%; max-width: 600px; }
+    .send-success-text { font-size: 20px; color: #fff; margin-bottom: 6px; font-weight: 700; }
+    .send-success-hint { font-size: 14px; color: #d1242f; margin-bottom: 20px; }
+    .success-imgs { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+    .success-imgs a { display: block; }
+    .success-imgs img, .success-imgs canvas { max-width: 100%; border-radius: 10px; display: block; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); }
+
+    /* 加载遮罩 */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: none; place-items: center;
+      z-index: 999; padding: 16px;
+    }
+    .overlay.show { display: grid; }
+    .overlay-card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 16px 18px;
+      width: min(90vw,360px); color: var(--text); text-align: center;
+    }
+    .overlay-title { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+    .overlay-bar {
+      height: 8px; border-radius: 999px;
+      background: rgba(255,255,255,0.08); overflow: hidden; margin-bottom: 10px;
+    }
+    .overlay-bar > span {
+      display: block; height: 100%; width: 45%;
+      background: var(--btn); border-radius: inherit;
+      animation: loadingBar 1.2s ease-in-out infinite;
+    }
+    @keyframes loadingBar {
+      0%   { transform: translateX(-100%); }
+      50%  { transform: translateX(80%); }
+      100% { transform: translateX(220%); }
+    }
+    .overlay-hint { font-size: 12px; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+  <div class="wrap">
+    <!-- 预览框 -->
+    <div class="frame" id="frame">
+      <img id="bgImg" src="" alt="模板底图" />
+      <!-- 文字层由 JS 动态插入 -->
+    </div>
+
+    <!-- 动态字段卡 -->
+    <div id="fieldsArea"></div>
+
+    <button type="button" class="btn-generate" id="btnGenerate" disabled>生成祝福牌</button>
+    <div class="field-status" id="genStatus"></div>
+
+    <!-- 录音 -->
+    <div class="record-section" style="display:none;">
+      <div class="record-progress" id="recordProgress">
+        <div class="record-progress-bar" id="recordProgressBar"></div>
+        <span class="record-timer" id="recordTimer">10</span>
+      </div>
+      <button id="btnRecord" class="record-btn" aria-label="录音">
+        <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" width="56" height="56">
+          <path d="M429.8 650.2h164.5c53.7 0 97.6-43.9 97.6-97.6V377.1H585.3v-40h106.6v-40H585.3v-40h106.6v-40H585.3v-40h106.6v-15.6c0-53.7-43.9-97.6-97.6-97.6H429.8c-53.7 0-97.6 43.9-97.6 97.6v15.6h106.6v40H332.1v40h106.6v40H332.1v40h106.6v40H332.1v175.5c0 53.7 44 97.6 97.7 97.6z" fill="#bfbfbf"/>
+          <path d="M825.1 380.4c-18.4 0-33.3 14.9-33.3 33.3v186.5c0 69.8-57.5 126.6-128.3 126.6h-303c-70.7 0-128.3-56.8-128.3-126.6V413.7c0-18.4-14.9-33.3-33.3-33.3s-33.3 14.9-33.3 33.3v186.5c0 106.5 87.4 193.2 194.9 193.2H472V920c0 22 18 40 40 40s40-18 40-40V793.5h111.5c107.5 0 194.9-86.7 194.9-193.2V413.7c0-18.4-14.9-33.3-33.3-33.3z" fill="#bfbfbf"/>
+        </svg>
+      </button>
+      <div class="record-hint">可录制祝福语</div>
+      <audio id="recordedAudio" style="display:none;"></audio>
+    </div>
+
+    <!-- 发送祝福 -->
+    <div class="send-section" style="display:none;">
+      <button id="btnSendBlessing" class="send-btn">发送祝福</button>
+    </div>
+  </div>
+
+  <!-- 发送成功提示 -->
+  <div id="sendSuccessOverlay" class="send-success-overlay">
+    <div class="send-success-content">
+      <div class="send-success-text">祝福已发送</div>
+      <div class="send-success-hint">请点击图片下载分享</div>
+      <div class="success-imgs">
+        <a id="dlGenerated" download="祝福分享.png"><img id="successGeneratedImg" alt="祝福分享" /></a>
+        <a id="dlGuapai" download="祝福挂牌.jpg"><img id="successGuapaiImg" alt="祝福挂牌" /></a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 加载遮罩 -->
+  <div id="loadingOverlay" class="overlay" role="dialog" aria-live="polite">
+    <div class="overlay-card">
+      <div class="overlay-title">正在生成祝福牌</div>
+      <div class="overlay-bar"><span></span></div>
+      <div class="overlay-hint">请稍后…</div>
+    </div>
+  </div>
+
+  <script>
+    const FONT_API = '../../font/dfont.php';
+    const loadingOverlay = document.getElementById('loadingOverlay');
+
+    // ── 繁体字体支持 ──────────────────────────────────────────
+    const TRADITIONAL_FONTS = new Set(['bfs', 'MasaFont-Bold', 'SotyrFangsong-Regular']);
+    let _s2tConverter = null;
+    function s2t(text) {
+      if (!text) return text;
+      try {
+        if (!_s2tConverter && typeof OpenCC !== 'undefined') {
+          _s2tConverter = OpenCC.Converter({ from: 'cn', to: 'tw' });
+        }
+        return _s2tConverter ? _s2tConverter(text) : text;
+      } catch { return text; }
+    }
+
+    // ── 字体缓存 / 状态 ──────────────────────────────────────
+    const loadedFonts = {};
+    let guapaiBgImg = null;
+
+    async function loadFont(fontName, text) {
+      if (!fontName || fontName === 'default') return 'sans-serif';
+      const isTraditional = TRADITIONAL_FONTS.has(fontName);
+      const displayText = isTraditional ? s2t(text) : text;
+      const cacheKey = fontName + '|' + displayText;
+      if (loadedFonts[cacheKey]) return loadedFonts[cacheKey];
+      const uniqueChars = [...new Set(displayText.replace(/\s/g, ''))].join('');
+      try {
+        const url = `${FONT_API}?font=${encodeURIComponent(fontName)}&text=${encodeURIComponent(uniqueChars)}`;
+        const resp = await fetch(url);
+        if (!resp.ok) return fontName;
+        const data = await resp.arrayBuffer();
+        const familyKey = `CF_${fontName}_${Date.now()}`;
+        const face = new FontFace(familyKey, data);
+        await face.load();
+        document.fonts.add(face);
+        loadedFonts[cacheKey] = familyKey;
+        return familyKey;
+      } catch { return fontName; }
+    }
+
+    // ── 日期格式化 ────────────────────────────────────────────
+    const CN_DIGITS = ['零','一','二','三','四','五','六','七','八','九'];
+    function numToCn(n) { return String(n).split('').map(c => CN_DIGITS[parseInt(c)]).join(''); }
+    function monthToCn(m) { if (m<=10) return CN_DIGITS[m]; if (m===11) return '十一'; return '十二'; }
+    function dayToCn(d) {
+      if (d<=10) return CN_DIGITS[d]; if (d<20) return '十'+CN_DIGITS[d-10];
+      if (d===20) return '二十'; if (d<30) return '二十'+CN_DIGITS[d-20];
+      if (d===30) return '三十'; return '三十'+CN_DIGITS[d-30];
+    }
+    const TIAN_GAN = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+    const DI_ZHI   = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+    const DZ_MONTH = ['寅','卯','辰','巳','午','未','申','酉','戌','亥','子','丑'];
+    function yearToGanZhi(y) { return TIAN_GAN[(y-4)%10]+DI_ZHI[(y-4)%12]; }
+    function monthToGanZhi(m) { return DZ_MONTH[m-1]+'月'; }
+    function formatDate(dateStr, fmt) {
+      if (!dateStr) return '';
+      const [fy,fm,fd] = dateStr.split('-').map(Number);
+      const y2 = fy % 100;
+      switch (fmt) {
+        case 'cn_full':   return numToCn(y2)+'年'+monthToCn(fm)+'月'+dayToCn(fd)+'日';
+        case 'cn_ym':     return numToCn(y2)+'·'+monthToCn(fm)+'月';
+        case 'gz':        return yearToGanZhi(fy)+'年·'+monthToGanZhi(fm);
+        case 'num_full':  return y2+'年'+String(fm).padStart(2,'0')+'月'+String(fd).padStart(2,'0')+'日';
+        case 'num_ym':    return y2+'年'+String(fm).padStart(2,'0')+'月';
+        case 'dash_full': return y2+'·'+String(fm).padStart(2,'0')+'·'+String(fd).padStart(2,'0');
+        case 'dash_ym':   return y2+'·'+String(fm).padStart(2,'0');
+        default: return dateStr;
+      }
+    }
+
+    // ── URL 参数 ──────────────────────────────────────────────
+    const urlParams  = new URLSearchParams(window.location.search);
+    const templateId = urlParams.get('template_id') || '';
+
+    // 设置底图
+    (function () {
+      const bg = urlParams.get('bg');
+      if (bg) document.getElementById('bgImg').src = '../' + bg;
+    })();
+
+    // ── 模板配置 ──────────────────────────────────────────────
+    let templateConfig = null;
+    let zoneConfigs    = [];
+
+    // ── 应用图层样式（与 pic_apply.html 一致）─────────────────
+    function applyLayerStyle(layerEl, z, text) {
+      if (!text) { layerEl.style.display = 'none'; return; }
+      layerEl.style.display = 'flex';
+      layerEl.style.left   = (z.x / 270 * 100) + '%';
+      layerEl.style.top    = (z.y / 400 * 100) + '%';
+      layerEl.style.width  = (z.w / 270 * 100) + '%';
+      layerEl.style.height = (z.h / 400 * 100) + '%';
+      layerEl.style.fontSize      = (z.size || 20) + 'px';
+      layerEl.style.color         = z.color || '#111111';
+      layerEl.style.backgroundColor = z.bgc || 'transparent';
+      layerEl.style.letterSpacing = (z.spacing || 0) + 'px';
+      layerEl.style.lineHeight    = z.lineH || 1.3;
+      layerEl.style.justifyContent = z.alignH || 'center';
+      layerEl.style.alignItems     = z.alignV || 'center';
+      layerEl.style.textAlign = z.alignH === 'flex-start' ? 'left' : z.alignH === 'flex-end' ? 'right' : 'center';
+      layerEl.style.borderRadius  = (z.radius || 0) + 'px';
+      layerEl.style.transform     = z.rotate ? `rotate(${z.rotate}deg)` : '';
+      const sw = parseFloat(z.strokeW) || 0;
+      layerEl.style.webkitTextStroke = sw > 0 ? `${sw}px ${z.strokeC || '#000000'}` : '';
+      let sp = layerEl.firstElementChild;
+      if (!sp) { sp = document.createElement('span'); layerEl.appendChild(sp); }
+      sp.textContent = text;
+      sp.style.writingMode = (z.dir === 'v') ? 'vertical-lr' : 'horizontal-tb';
+      sp.style.width       = (z.dir === 'v') ? '' : '100%';
+    }
+
+    // ── 动态生成字段卡片 ─────────────────────────────────────
+    const zoneInputs = [];
+
+    function buildFields() {
+      const area = document.getElementById('fieldsArea');
+      area.innerHTML = '';
+      zoneInputs.length = 0;
+      const frame = document.getElementById('frame');
+
+      zoneConfigs.forEach((z, idx) => {
+        const layerEl = document.createElement('div');
+        layerEl.className = 'text-layer';
+        layerEl.style.display = 'none';
+        frame.appendChild(layerEl);
+
+        const card = document.createElement('div');
+        card.className = 'field-card';
+
+        const title = document.createElement('div');
+        title.className = 'field-title';
+        title.textContent = z.name || (z.type === 'date' ? '时间' : '文字');
+
+        if (z.type !== 'date') {
+          const limitSpan = document.createElement('span');
+          limitSpan.className = 'limit';
+          const min = z.minLen || 0, max = z.maxLen || 0;
+          if (min > 0 && max > 0) limitSpan.textContent = min === max ? `（必须${min}字）` : `（${min}~${max}字）`;
+          else if (max > 0) limitSpan.textContent = `（≤${max}字）`;
+          else if (min > 0) limitSpan.textContent = `（≥${min}字）`;
+          title.appendChild(limitSpan);
+        }
+        card.appendChild(title);
+
+        let inputEl = null, dateEl = null;
+
+        if (z.type === 'date') {
+          dateEl = document.createElement('input');
+          dateEl.type = 'date';
+          const d = new Date();
+          dateEl.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          card.appendChild(dateEl);
+          zoneInputs.push({ dateEl, layerEl, zoneData: z });
+        } else {
+          inputEl = document.createElement('input');
+          inputEl.type = 'text';
+          inputEl.placeholder = z.name || '请输入';
+          if (z.maxLen > 0) inputEl.maxLength = z.maxLen;
+          card.appendChild(inputEl);
+          zoneInputs.push({ inputEl, layerEl, zoneData: z });
+        }
+
+        area.appendChild(card);
+      });
+
+      if (zoneConfigs.length === 0) {
+        document.getElementById('btnGenerate').disabled = false;
+      }
+    }
+
+    // ── 加载模板配置 ──────────────────────────────────────────
+    (async function () {
+      if (!templateId) return;
+      try {
+        const resp = await fetch('../template.php?action=get_config&template_id=' + encodeURIComponent(templateId));
+        const json = await resp.json();
+        if (!json.ok) return;
+        templateConfig = JSON.parse(json.config || '{}');
+        zoneConfigs = templateConfig.zones || [];
+        buildFields();
+        document.getElementById('btnGenerate').disabled = false;
+      } catch (e) {
+        console.warn('模板配置加载失败:', e);
+      }
+    })();
+
+    // ── 预加载挂牌背景图 ──────────────────────────────────────
+    (function () {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => { guapaiBgImg = img; };
+      img.src = 'https://gl99.top/qfp/img/guapai.jpg';
+    })();
+
+    // ── Canvas 合成 ───────────────────────────────────────────
+    function _rrect(ctx, x, y, w, h, r) {
+      r = Math.min(r, w/2, h/2);
+      ctx.beginPath();
+      ctx.moveTo(x+r, y);
+      ctx.arcTo(x+w, y,   x+w, y+h, r);
+      ctx.arcTo(x+w, y+h, x,   y+h, r);
+      ctx.arcTo(x,   y+h, x,   y,   r);
+      ctx.arcTo(x,   y,   x+w, y,   r);
+      ctx.closePath();
+    }
+
+    function buildOutputCanvas() {
+      const frame  = document.getElementById('frame');
+      const bgImg  = document.getElementById('bgImg');
+      const imgR   = bgImg.getBoundingClientRect();
+      const FW = imgR.width;
+      const FH = imgR.height;
+      const SCALE = 2;
+
+      const cv = document.createElement('canvas');
+      cv.width  = FW * SCALE;
+      cv.height = FH * SCALE;
+      const ctx = cv.getContext('2d');
+      ctx.scale(SCALE, SCALE);
+
+      // 不绘制底图，保持透明背景，只绘制文字层（与 apply.html 一致）
+
+      const frameRect = frame.getBoundingClientRect();
+
+      frame.querySelectorAll('.text-layer').forEach(layer => {
+        if (layer.style.display === 'none') return;
+        const sp = layer.firstElementChild;
+        if (!sp || !sp.textContent.trim()) return;
+
+        const lr = layer.getBoundingClientRect();
+        const lx = lr.left - imgR.left;
+        const ly = lr.top  - imgR.top;
+        const lw = lr.width;
+        const lh = lr.height;
+
+        const cs = getComputedStyle(layer);
+        const fontSize  = parseFloat(cs.fontSize)    || 20;
+        const color     = cs.color                   || '#111111';
+        const bgColor   = cs.backgroundColor;
+        const fontFamily = cs.fontFamily             || 'sans-serif';
+        const borderRad = parseFloat(cs.borderRadius) || 0;
+        const strokeW   = parseFloat(cs.webkitTextStrokeWidth) || 0;
+        const strokeC   = cs.webkitTextStrokeColor   || '#000000';
+        const transform = cs.transform;
+
+        ctx.save();
+
+        if (transform && transform !== 'none') {
+          const m = transform.match(/matrix\(([^)]+)\)/);
+          if (m) {
+            const vals = m[1].split(',').map(Number);
+            const angle = Math.atan2(vals[1], vals[0]);
+            if (Math.abs(angle) > 0.001) {
+              const cx = lx + lw/2, cy = ly + lh/2;
+              ctx.translate(cx, cy);
+              ctx.rotate(angle);
+              ctx.translate(-cx, -cy);
+            }
+          }
+        }
+
+        if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+          ctx.fillStyle = bgColor;
+          _rrect(ctx, lx, ly, lw, lh, borderRad);
+          ctx.fill();
+        }
+
+        _rrect(ctx, lx, ly, lw, lh, borderRad);
+        ctx.clip();
+
+        ctx.font = `${fontSize}px ${fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = color;
+
+        const text = sp.textContent;
+        const range = document.createRange();
+        for (let i = 0; i < text.length; i++) {
+          range.setStart(sp.firstChild || sp, i);
+          range.setEnd(sp.firstChild || sp, i + 1);
+          const cr = range.getBoundingClientRect();
+          const cx = cr.left - imgR.left + cr.width / 2;
+          const cy = cr.top  - imgR.top  + cr.height / 2;
+
+          if (strokeW > 0) {
+            ctx.save();
+            ctx.strokeStyle = strokeC;
+            ctx.lineWidth = strokeW * 2;
+            ctx.lineJoin = 'round';
+            ctx.strokeText(text[i], cx, cy);
+            ctx.restore();
+          }
+          ctx.fillText(text[i], cx, cy);
+        }
+
+        ctx.restore();
+      });
+      return cv;
+    }
+
+    /** 合成完整图（背景 + 文字）540×800 */
+    function buildFullCanvas() {
+      const frame = document.getElementById('frame');
+      const bgImg = document.getElementById('bgImg');
+      const FW = 270, FH = 400;
+      const OUTPUT_W = 540, OUTPUT_H = 800;
+      const SCALE = OUTPUT_W / FW;
+      const cv = document.createElement('canvas');
+      cv.width = OUTPUT_W; cv.height = OUTPUT_H;
+      const ctx = cv.getContext('2d');
+      ctx.scale(SCALE, SCALE);
+      // 绘制背景底图
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, FW, FH);
+      if (bgImg.naturalWidth) {
+        try { ctx.drawImage(bgImg, 0, 0, FW, FH); } catch(_) {}
+      }
+      // 绘制文字层
+      const frameRect = frame.getBoundingClientRect();
+      const scaleX = FW / frameRect.width;
+      const scaleY = FH / frameRect.height;
+      const geomScale = Math.min(scaleX, scaleY);
+      frame.querySelectorAll('.text-layer').forEach(layer => {
+        if (layer.style.display === 'none') return;
+        const sp = layer.firstElementChild;
+        if (!sp || !sp.textContent.trim()) return;
+        const lr = layer.getBoundingClientRect();
+        const lx = (lr.left - frameRect.left) * scaleX;
+        const ly = (lr.top  - frameRect.top)  * scaleY;
+        const lw = lr.width  * scaleX;
+        const lh = lr.height * scaleY;
+        const cs = getComputedStyle(layer);
+        ctx.save();
+        const mat = cs.transform;
+        if (mat && mat !== 'none') {
+          const m = mat.match(/matrix\(([^)]+)\)/);
+          if (m) {
+            const vals = m[1].split(',').map(Number);
+            const angle = Math.atan2(vals[1], vals[0]);
+            if (Math.abs(angle) > 0.001) {
+              const cx = lx + lw/2, cy = ly + lh/2;
+              ctx.translate(cx, cy); ctx.rotate(angle); ctx.translate(-cx, -cy);
+            }
+          }
+        }
+        const bgColor = cs.backgroundColor;
+        if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+          const r = (parseFloat(cs.borderRadius) || 0) * geomScale;
+          ctx.fillStyle = bgColor;
+          ctx.beginPath();
+          ctx.roundRect ? ctx.roundRect(lx, ly, lw, lh, r) : ctx.rect(lx, ly, lw, lh);
+          ctx.fill();
+        }
+        ctx.beginPath(); ctx.rect(lx, ly, lw, lh); ctx.clip();
+        const fontSize   = (parseFloat(cs.fontSize) || 20) * geomScale;
+        const color      = cs.color || '#111111';
+        const fontFamily = cs.fontFamily || 'sans-serif';
+        const sw2 = (parseFloat(cs.webkitTextStrokeWidth) || 0) * geomScale;
+        const sc  = cs.webkitTextStrokeColor || '#000000';
+        ctx.font = `${fontSize}px ${fontFamily}`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = color;
+        const text = sp.textContent;
+        const range = document.createRange();
+        for (let i = 0; i < text.length; i++) {
+          range.setStart(sp.firstChild || sp, i);
+          range.setEnd(sp.firstChild || sp, i + 1);
+          const cr = range.getBoundingClientRect();
+          const cx = (cr.left - frameRect.left + cr.width  / 2) * scaleX;
+          const cy = (cr.top  - frameRect.top  + cr.height / 2) * scaleY;
+          if (sw2 > 0) {
+            ctx.save(); ctx.strokeStyle = sc; ctx.lineWidth = sw2 * 2; ctx.lineJoin = 'round';
+            ctx.strokeText(text[i], cx, cy); ctx.restore();
+          }
+          ctx.fillText(text[i], cx, cy);
+        }
+        ctx.restore();
+      });
+      return cv;
+    }
+
+    // ── 生成祝福牌 ────────────────────────────────────────────
+    document.getElementById('btnGenerate').addEventListener('click', async () => {
+      const genStatus = document.getElementById('genStatus');
+      const btn = document.getElementById('btnGenerate');
+      genStatus.textContent = '';
+      btn.disabled = true;
+      loadingOverlay.classList.add('show');
+
+      try {
+        for (const zi of zoneInputs) {
+          const { layerEl, zoneData: z } = zi;
+          let text = '';
+
+          if (z.type === 'date') {
+            text = formatDate(zi.dateEl.value, z.dateFmt || 'num_full');
+          } else {
+            text = zi.inputEl.value.trim();
+            const min = z.minLen || 0, max = z.maxLen || 0;
+            if (min > 0 && text.length < min) {
+              genStatus.textContent = `「${z.name}」至少需要${min}字`;
+              genStatus.style.color = '#f85149';
+              btn.disabled = false;
+              loadingOverlay.classList.remove('show');
+              return;
+            }
+            if (max > 0 && text.length > max) {
+              genStatus.textContent = `「${z.name}」最多${max}字`;
+              genStatus.style.color = '#f85149';
+              btn.disabled = false;
+              loadingOverlay.classList.remove('show');
+              return;
+            }
+          }
+
+          if (!text) { layerEl.style.display = 'none'; continue; }
+
+          // 繁体字体处理
+          const isTraditional = TRADITIONAL_FONTS.has(z.font);
+          const displayText = isTraditional ? s2t(text) : text;
+
+          const familyKey = await loadFont(z.font, text);
+          applyLayerStyle(layerEl, z, displayText);
+          if (familyKey && familyKey !== 'sans-serif') layerEl.style.fontFamily = familyKey;
+        }
+
+        document.querySelector('.record-section').style.display = '';
+        document.querySelector('.send-section').style.display = '';
+        btn.textContent = '重新生成';
+      } catch (err) {
+        console.error(err);
+        genStatus.textContent = '生成失败: ' + err.message;
+        genStatus.style.color = '#f85149';
+      } finally {
+        btn.disabled = false;
+        loadingOverlay.classList.remove('show');
+      }
+    });
+
+    // ── 录音功能 ──────────────────────────────────────────────
+    const btnRecord       = document.getElementById('btnRecord');
+    const recordProgress  = document.getElementById('recordProgress');
+    const recordProgressBar = document.getElementById('recordProgressBar');
+    const recordTimer     = document.getElementById('recordTimer');
+    const recordedAudio   = document.getElementById('recordedAudio');
+    let mediaRecorder = null, recordedChunks = [], lastRecordedBlob = null;
+    let recordingTimer = null, recordingStartTime = null;
+    const MAX_RECORD_TIME = 10000;
+
+    async function startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        recordedChunks = [];
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+        mediaRecorder.onstop = () => {
+          stream.getTracks().forEach(t => t.stop());
+          if (recordedChunks.length > 0) {
+            const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+            lastRecordedBlob = blob;
+            const url = URL.createObjectURL(blob);
+            recordedAudio.src = url;
+            recordedAudio.onloadeddata = () => recordedAudio.play().catch(() => {});
+          }
+        };
+        mediaRecorder.start(100);
+        recordingStartTime = Date.now();
+        btnRecord.classList.add('recording');
+        recordProgress.classList.add('show');
+        updateRecordProgress();
+        recordingTimer = setTimeout(stopRecording, MAX_RECORD_TIME);
+      } catch { alert('无法访问麦克风，请检查权限设置'); }
+    }
+    function updateRecordProgress() {
+      if (!recordingStartTime || !mediaRecorder || mediaRecorder.state !== 'recording') return;
+      const elapsed = Date.now() - recordingStartTime;
+      const remaining = Math.max(0, MAX_RECORD_TIME - elapsed);
+      recordProgressBar.style.width = (remaining / MAX_RECORD_TIME * 100) + '%';
+      recordTimer.textContent = Math.ceil(remaining / 1000);
+      if (remaining > 0) requestAnimationFrame(updateRecordProgress);
+    }
+    function stopRecording() {
+      if (recordingTimer) { clearTimeout(recordingTimer); recordingTimer = null; }
+      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+      btnRecord.classList.remove('recording');
+      recordProgress.classList.remove('show');
+      recordProgressBar.style.width = '100%';
+      recordTimer.textContent = '10';
+      recordingStartTime = null;
+    }
+    btnRecord.addEventListener('pointerdown', e => { e.preventDefault(); startRecording(); });
+    btnRecord.addEventListener('pointerup',   e => { e.preventDefault(); stopRecording();  });
+    btnRecord.addEventListener('pointerleave', () => { if (mediaRecorder?.state === 'recording') stopRecording(); });
+    btnRecord.addEventListener('pointercancel',() => { if (mediaRecorder?.state === 'recording') stopRecording(); });
+
+    // ── 发送祝福 ──────────────────────────────────────────────
+    function buildImageBlob() {
+      return new Promise((resolve, reject) => {
+        const sourceCanvas = buildOutputCanvas();
+        const scaledCanvas = document.createElement('canvas');
+        scaledCanvas.width = 270;
+        scaledCanvas.height = 400;
+        const ctx = scaledCanvas.getContext('2d');
+        ctx.drawImage(sourceCanvas, 0, 0, 270, 400);
+        scaledCanvas.toBlob(blob => {
+          if (!blob) { reject(new Error('图片生成失败')); return; }
+          resolve(blob);
+        }, 'image/png');
+      });
+    }
+
+    function runServerLogs(htmlText) {
+      if (!htmlText || !htmlText.includes('<script>')) return;
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.srcdoc = htmlText;
+      document.body.appendChild(iframe);
+      setTimeout(() => iframe.remove(), 1500);
+    }
+
+    function extractPlainText(htmlText) {
+      if (!htmlText || !htmlText.includes('<')) return (htmlText || '').trim();
+      const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+      return (doc.body ? doc.body.textContent : htmlText).trim();
+    }
+
+    async function uploadBlessing() {
+      const fullUrl = window.location.href;
+      const match = fullUrl.match(/[?&](\d{4}[A-Za-z0-9]{9}[A-Za-z0-9]{8})(?:&|$)/);
+      let deviceParam = match ? match[1] : '';
+      if (!deviceParam) {
+        const hashMatch = (window.location.hash || '').match(/(\d{4}[A-Za-z0-9]{9}[A-Za-z0-9]{8})/);
+        if (hashMatch) deviceParam = hashMatch[1];
+      }
+      if (!deviceParam) { alert('URL 缺少设备参数，无法发送祝福。'); return false; }
+
+      const imageBlob = await buildImageBlob();
+      const formData = new FormData();
+      formData.append('image', imageBlob, 'capture.png');
+      if (lastRecordedBlob) formData.append('audio', lastRecordedBlob, 'record.wav');
+      formData.append('mode', 'compose');
+      const bg = urlParams.get('bg');
+      if (bg) formData.append('bg_path', bg);
+
+      const response = await fetch(`../up.php?${deviceParam}`, { method: 'POST', body: formData });
+      const text = await response.text();
+      runServerLogs(text);
+      if (!response.ok) throw new Error(extractPlainText(text) || '上传失败');
+      return true;
+    }
+
+    const btnSendBlessing = document.getElementById('btnSendBlessing');
+    const sendSuccessOverlay = document.getElementById('sendSuccessOverlay');
+
+    btnSendBlessing.addEventListener('click', async () => {
+      btnSendBlessing.disabled = true;
+      btnSendBlessing.textContent = '发送中...';
+      try {
+        // 在隐藏预览区之前先合成完整图（需要文字层可见才能取 getBoundingClientRect）
+        const fullCanvas = buildFullCanvas();
+
+        await uploadBlessing();
+        document.querySelector('.wrap').style.display = 'none';
+
+        const _d = new Date();
+        const _datePrefix = `${_d.getFullYear()}年${_d.getMonth()+1}月${_d.getDate()}日`;
+
+        // 祝福分享图（背景 + 文字 540×800）
+        const fullUrl = fullCanvas.toDataURL('image/png');
+        const sgi = document.getElementById('successGeneratedImg');
+        sgi.src = fullUrl;
+        const dlGen = document.getElementById('dlGenerated');
+        dlGen.href = fullUrl;
+        dlGen.download = _datePrefix + '祝福分享.png';
+
+        // 祝福挂牌图（540×805 背景 + 合成图缩小贴入）
+        if (guapaiBgImg) {
+          const gpCv = document.createElement('canvas');
+          gpCv.width = 540; gpCv.height = 805;
+          const gpCtx = gpCv.getContext('2d');
+          gpCtx.drawImage(guapaiBgImg, 0, 0, 540, 805);
+          const scaledW = 240;
+          const scaledH = Math.round(800 * 240 / 540);
+          gpCtx.drawImage(fullCanvas, 0, 0, 540, 800, 160, 255, scaledW, scaledH);
+          const gpUrl = gpCv.toDataURL('image/jpeg', 0.92);
+          const sgpImg = document.getElementById('successGuapaiImg');
+          sgpImg.src = gpUrl;
+          const dlGuapai = document.getElementById('dlGuapai');
+          dlGuapai.href = gpUrl;
+          dlGuapai.download = _datePrefix + '祝福挂牌.jpg';
+        }
+
+        sendSuccessOverlay.classList.add('show');
+      } catch (error) {
+        alert(error.message || '上传失败');
+      } finally {
+        btnSendBlessing.disabled = false;
+        btnSendBlessing.textContent = '发送祝福';
+      }
+    });
+
+    // 预请求麦克风权限
+    if (navigator.mediaDevices?.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => stream.getTracks().forEach(t => t.stop()))
+        .catch(() => {});
+    }
+  </script>
+</body>
+</html>

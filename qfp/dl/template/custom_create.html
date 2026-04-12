@@ -1,0 +1,920 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>自定义图文模板编辑</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121826;
+      --text: #e6edf3;
+      --muted: #9aa4b2;
+      --border: rgba(255,255,255,0.10);
+      --btn: #1f6feb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap { padding: 12px; max-width: 920px; margin: 0 auto; }
+
+    /* 顶部操作栏 */
+    .action-bar { display: flex; gap: 8px; align-items: center; }
+    .action-bar button {
+      flex: 1; padding: 10px 0; border: 0; border-radius: 10px;
+      font-weight: 600; font-size: 14px; cursor: pointer;
+    }
+    #btnChangeBg {
+      background: rgba(255,255,255,0.08); color: var(--text);
+      border: 1px solid var(--border);
+    }
+    #btnChangeBg:hover { background: rgba(255,255,255,0.14); }
+    #btnPublish { background: var(--btn); color: #fff; }
+    #btnPublish:disabled { opacity: .5; cursor: default; }
+
+    /* 预览框 */
+    .frame {
+      margin-top: 10px; width: 100%; aspect-ratio: 270 / 400;
+      background: #0f172a; border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden; position: relative;
+      user-select: none;
+    }
+    .frame img#preview {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .text-layer {
+      position: absolute; z-index: 5; font-size: 28px; line-height: 1.3;
+      white-space: pre-wrap; word-break: break-word; pointer-events: none;
+      display: none; padding: 0; border: 1px dashed rgba(59,130,246,0.7);
+      overflow: hidden; justify-content: center; align-items: center;
+      text-align: center; paint-order: stroke fill;
+    }
+    .frame.dashes-hidden .text-layer { border-color: transparent; }
+
+    /* 发布弹窗 */
+    .overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+      display: none; place-items: center; z-index: 999; padding: 16px;
+    }
+    .overlay.show { display: grid; }
+    .overlay-card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 18px; width: min(90vw, 360px); color: var(--text);
+    }
+    .overlay-title { font-size: 16px; font-weight: 600; margin-bottom: 14px; }
+    .modal-field { margin-bottom: 12px; }
+    .modal-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .modal-field input, .modal-field select {
+      width: 100%; border-radius: 8px; border: 1px solid var(--border);
+      background: rgba(255,255,255,.04); color: var(--text);
+      padding: 8px 10px; font-size: 14px; outline: none;
+    }
+    .modal-field input:focus, .modal-field select:focus {
+      border-color: rgba(31,111,235,.7); box-shadow: 0 0 0 3px rgba(31,111,235,.2);
+    }
+    .modal-field select option { background: var(--panel); }
+    .modal-err { color: #dc2626; font-size: 12px; min-height: 16px; margin-top: 4px; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .modal-actions button {
+      flex: 1; padding: 9px 0; border: 0; border-radius: 10px;
+      font-weight: 600; font-size: 14px; cursor: pointer;
+    }
+    .modal-btn-cancel  { background: rgba(255,255,255,0.08); color: var(--text); }
+    .modal-btn-saveas  { background: rgba(255,255,255,0.08); color: var(--text); }
+    .modal-btn-confirm { background: var(--btn); color: #fff; }
+
+    /* jump-bar */
+    .jump-bar { display: flex; gap: 8px; margin-top: 10px; }
+    .jump-bar button {
+      flex: 1; padding: 9px 0; font-size: 13px; font-weight: 600;
+      border-radius: 10px; border: 1px solid var(--border);
+      background: var(--panel); color: var(--muted); cursor: pointer;
+    }
+    .jump-bar button:hover { border-color: var(--btn); color: var(--text); }
+    .jump-bar button.active {
+      border-color: var(--btn); color: var(--text); background: rgba(31,111,235,0.12);
+    }
+    #btnDashed { flex: none; padding: 9px 16px; }
+
+    /* field-card */
+    .field-card {
+      margin-top: 14px; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .zone-header { display: flex; align-items: center; gap: 8px; }
+    .zone-name {
+      flex: 1; border: 0; background: transparent; color: var(--text);
+      font-size: 14px; font-weight: 600; outline: none; padding: 2px 4px; border-radius: 4px;
+    }
+    .zone-name:focus { background: rgba(255,255,255,0.05); outline: 1px solid var(--border); }
+    .zone-del-btn {
+      flex: none; border: 0; background: transparent; color: var(--muted);
+      font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 6px;
+    }
+    .zone-del-btn:hover { background: rgba(220,38,38,0.15); color: #f87171; }
+    .zone-pin-btn {
+      flex: none; border: 0; background: transparent; color: var(--muted);
+      font-size: 14px; line-height: 1; cursor: pointer; padding: 2px 8px; border-radius: 6px;
+    }
+    .zone-pin-btn:hover { background: rgba(31,111,235,0.15); color: #60a5fa; }
+    .field-card input[type="text"], .field-card input[type="date"] {
+      width: 100%; border-radius: 10px; border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03); color: var(--text);
+      padding: 10px 12px; font-size: 16px; line-height: 1.3; outline: none; color-scheme: dark;
+    }
+    .field-card input[type="text"]:focus, .field-card input[type="date"]:focus {
+      border-color: rgba(31,111,235,0.7); box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .field-card select {
+      border-radius: 8px; border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03); color: var(--text);
+      padding: 6px 8px; font-size: 13px; outline: none;
+    }
+    .field-card select:focus {
+      border-color: rgba(31,111,235,0.7); box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .field-card select option { background: #fff; color: #111; }
+    .charlimit-row {
+      display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted);
+    }
+    .charlimit-row input[type="number"] {
+      width: 50px; flex: none; border-radius: 8px; border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03); color: var(--text); padding: 5px 7px;
+      font-size: 13px; outline: none;
+    }
+    .align-row { display: flex; gap: 8px; align-items: center; }
+    .align-row label { font-size: 12px; color: var(--muted); }
+    .settings-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .settings-row select { flex: 1; min-width: 90px; }
+    .settings-row input[type="number"] {
+      width: 52px; flex: none; border-radius: 8px; border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03); color: var(--text); padding: 5px 7px;
+      font-size: 13px; outline: none;
+    }
+    .spacing-label { font-size: 12px; color: var(--muted); }
+    .color-row, .bgc-row { display: flex; gap: 6px; align-items: center; }
+    .color-row button, .bgc-row button {
+      flex: none; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--border);
+      font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .color-row button.active, .bgc-row button.active {
+      border-color: var(--btn); box-shadow: 0 0 0 2px rgba(31,111,235,0.35);
+    }
+    .color-btn-black { background:#111; color:#fff; }
+    .color-btn-red   { background:#d1242f; color:#fff; }
+    .color-btn-white { background:#fff; color:#111; }
+    .bgc-label { font-size:12px; color:var(--muted); }
+    .bgc-btn-none  { background:transparent; color:var(--muted); border-style:dashed !important; }
+    .bgc-btn-black { background:#111; color:#fff; }
+    .bgc-btn-red   { background:#d1242f; color:#fff; }
+    .bgc-btn-white { background:#fff; color:#111; }
+    .dir-row { display: flex; gap: 6px; }
+    .dir-row button {
+      flex: 1; padding: 6px 0; border-radius: 8px; border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03); color: var(--muted); font-size: 13px;
+      font-weight: 600; cursor: pointer;
+    }
+    .dir-row button.active {
+      border-color: var(--btn); color: var(--text); background: rgba(31,111,235,0.12);
+    }
+    .rotate-row, .stroke-row, .radius-row {
+      display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted);
+    }
+    .rotate-row input[type="number"], .stroke-row input[type="number"], .radius-row input[type="number"] {
+      width: 58px; flex: none; border-radius: 8px; border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03); color: var(--text); padding: 5px 7px;
+      font-size: 13px; outline: none;
+    }
+    .xywh-row { display: flex; gap: 6px; align-items: center; }
+    .xywh-row label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .xywh-row input[type="number"] {
+      width: 58px; flex: none; border-radius: 8px; border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03); color: var(--text); padding: 6px 8px;
+      font-size: 14px; outline: none;
+    }
+    .xywh-row input[type="number"]:focus {
+      border-color: rgba(31,111,235,0.7); box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
+    }
+    .preview-btn {
+      align-self: flex-start; padding: 7px 16px; border: 0; border-radius: 8px;
+      background: rgba(255,255,255,0.08); color: var(--text); font-size: 13px;
+      font-weight: 600; cursor: pointer;
+    }
+    .preview-btn:hover { background: rgba(255,255,255,0.14); }
+    .field-status { font-size: 12px; color: var(--muted); min-height: 16px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="action-bar">
+      <button id="btnChangeBg">换背景</button>
+      <button id="btnPublish">发布</button>
+    </div>
+    <input type="file" id="bgFileInput" accept="image/*" style="display:none" />
+
+    <div class="frame" id="frame">
+      <img id="preview" src="" alt="背景图" />
+    </div>
+
+    <div class="jump-bar" id="jumpBar">
+      <button type="button" id="btnAddZone">＋ 新增文字区</button>
+      <button type="button" id="btnAddDate">＋ 新增时间区</button>
+      <button type="button" id="btnDashed">虚线</button>
+    </div>
+  </div>
+
+  <!-- 发布弹窗 -->
+  <div class="overlay" id="publishModal">
+    <div class="overlay-card">
+      <div class="overlay-title" id="pubTitle">发布自定义图文模板</div>
+      <div class="modal-field">
+        <label>模板名称</label>
+        <input type="text" id="pubName" placeholder="请输入模板名称" autocomplete="off" />
+      </div>
+      <div class="modal-field">
+        <label>分类</label>
+        <select id="pubType"><option value="">加载中…</option></select>
+      </div>
+      <div class="modal-err" id="pubErr"></div>
+      <div class="modal-actions">
+        <button class="modal-btn-cancel"  id="pubCancel">取消</button>
+        <button class="modal-btn-saveas" id="pubSaveAs" style="display:none">另存为</button>
+        <button class="modal-btn-confirm" id="pubConfirm">确定发布</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params     = new URLSearchParams(location.search);
+    const templateId = params.get('template_id') || '';
+    const isEditing  = !!templateId;
+    let _savedTplName = '';
+    let _savedTypeId  = '';
+
+    /* ── 换背景 ── */
+    const bgFileInput = document.getElementById('bgFileInput');
+    const preview     = document.getElementById('preview');
+    document.getElementById('btnChangeBg').addEventListener('click', () => bgFileInput.click());
+    bgFileInput.addEventListener('change', () => {
+      const file = bgFileInput.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      preview.onload = () => URL.revokeObjectURL(url);
+      preview.src = url;
+    });
+
+    // 从 URL 参数读取背景图
+    (function () {
+      const bg = params.get('bg');
+      if (bg) preview.src = '../' + bg;
+    })();
+
+    /* ── 虚线切换 ── */
+    document.getElementById('btnDashed').addEventListener('click', function () {
+      document.getElementById('frame').classList.toggle('dashes-hidden');
+    });
+
+    /* ── 字体加载 ── */
+    let zoneSeq = 0;
+    let isRestoring = false;
+    const loadedFonts = {};
+
+    async function loadFont(name) {
+      if (!name || name === 'default' || loadedFonts[name]) return;
+      const fontMap = {
+        AlimamaDaoLiTi:          ['AlimamaDaoLiTi',       '../../font/AlimamaDaoLiTi.woff2'],
+        AlimamaDongFangDaKai:    ['AlimamaDongFangDaKai', '../../font/AlimamaDongFangDaKai.woff2'],
+        AlimamaShuHeiTi:         ['AlimamaShuHeiTi',      '../../font/AlimamaShuHeiTi.woff2'],
+        DingTalkJinBuTi:         ['DingTalkJinBuTi',      '../../font/DingTalkJinBuTi.woff2'],
+        TaoBaoMaiCaiTi:          ['TaoBaoMaiCaiTi',       '../../font/TaoBaoMaiCaiTi.woff2'],
+        'SotyrFangsong-Regular': ['SotyrFangsong',        '../../font/SotyrFangsong-Regular.woff2'],
+        bfs:  ['bfs',  '../../font/bfs.woff2'],
+        'MasaFont-Bold': ['MasaFont', '../../font/MasaFont-Bold.woff2'],
+        bzt:  ['bzt',  '../../font/bzt.woff2'],
+        sys:  ['sys',  '../../font/sys.woff2'],
+        syh:  ['syh',  '../../font/syh.woff2'],
+        sxt:  ['sxt',  '../../font/sxt.woff2'],
+        fbzd: ['fbzd', '../../font/fbzd.woff2'],
+        hot:  ['hot',  '../../font/hot.woff2'],
+        kkct: ['kkct', '../../font/kkct.woff2'],
+        yfxy: ['yfxy', '../../font/yfxy.woff2'],
+        lhls: ['lhls', '../../font/lhls.woff2'],
+      };
+      const entry = fontMap[name];
+      if (!entry) return;
+      try {
+        const ff = new FontFace(entry[0], `url("${entry[1]}")`);
+        await ff.load();
+        document.fonts.add(ff);
+        loadedFonts[name] = entry[0];
+      } catch (_) {}
+    }
+
+    /* ── 字体选项 HTML ── */
+    const FONT_OPTIONS = `
+      <option value="default">默认字体</option>
+      <option value="AlimamaDaoLiTi">刀隶体</option>
+      <option value="AlimamaDongFangDaKai">东方大楷</option>
+      <option value="AlimamaShuHeiTi">数黑体</option>
+      <option value="DingTalkJinBuTi">进步体</option>
+      <option value="TaoBaoMaiCaiTi">买菜体</option>
+      <option value="SotyrFangsong-Regular">长宋体</option>
+      <option value="bfs">美仿宋</option>
+      <option value="MasaFont-Bold">衡山毛笔</option>
+      <option value="bzt">碑筆体</option>
+      <option value="sys">思源宋</option>
+      <option value="syh">思源黑</option>
+      <option value="sxt">手写体</option>
+      <option value="fbzd">飞波正点</option>
+      <option value="hot">海鸥体</option>
+      <option value="kkct">可可体</option>
+      <option value="yfxy">余繁新语</option>
+      <option value="lhls">临海隶属</option>`;
+
+    /* ── 置顶工具 ── */
+    function pinCard(card) {
+      const frame = document.getElementById('frame');
+      frame.insertAdjacentElement('afterend', card);
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    /* ── 创建文字区 ── */
+    function createZone() {
+      zoneSeq++;
+      const id = 'layer_z' + zoneSeq, seq = zoneSeq;
+      const frame = document.getElementById('frame');
+      const layerEl = document.createElement('div');
+      layerEl.id = id; layerEl.className = 'text-layer'; layerEl.style.display = 'none';
+      frame.appendChild(layerEl);
+
+      const card = document.createElement('div');
+      card.className = 'field-card'; card.dataset.layer = id;
+      card.innerHTML = `
+        <div class="zone-header">
+          <input class="zone-name" type="text" value="文字区 ${seq}" placeholder="区域名称" />
+          <button class="zone-pin-btn" title="置顶">⇧</button>
+          <button class="zone-del-btn" title="删除此区">×</button>
+        </div>
+        <input type="text" class="field-input" placeholder="预览文字" />
+        <div class="charlimit-row">
+          <label>最少</label><input type="number" class="field-min-len" value="1" min="0" max="999" step="1" /><span>字</span>
+          <label>最多</label><input type="number" class="field-max-len" value="10" min="0" max="999" step="1" /><span>字</span>
+        </div>
+        <div class="xywh-row">
+          <label>X</label><input type="number" class="field-x" value="10" min="0" max="270" step="1" />
+          <label>Y</label><input type="number" class="field-y" value="10" min="0" max="400" step="1" />
+          <label>W</label><input type="number" class="field-w" value="250" min="1" max="270" step="1" />
+          <label>H</label><input type="number" class="field-h" value="50" min="1" max="400" step="1" />
+        </div>
+        <div class="align-row">
+          <label>横轴</label>
+          <select class="field-align-h"><option value="flex-start">左</option><option value="center" selected>居中</option><option value="flex-end">右</option></select>
+          <label>纵轴</label>
+          <select class="field-align-v"><option value="flex-start">上</option><option value="center" selected>居中</option><option value="flex-end">下</option></select>
+        </div>
+        <div class="settings-row">
+          <select class="field-font">${FONT_OPTIONS}</select>
+          <input type="number" class="field-size" value="32" min="1" max="200" step="1" />
+          <span class="spacing-label">字距</span><input type="number" class="field-spacing" value="0" min="-100" max="100" step="1" />
+          <span class="spacing-label">行距</span><input type="number" class="field-line-spacing" value="1.3" min="0.1" max="10" step="0.1" />
+        </div>
+        <div class="color-row">
+          <button type="button" class="color-btn-black" data-color="#111111">黑</button>
+          <button type="button" class="color-btn-red active" data-color="#d1242f">红</button>
+          <button type="button" class="color-btn-white" data-color="#ffffff">白</button>
+        </div>
+        <div class="bgc-row">
+          <span class="bgc-label">背景</span>
+          <button type="button" class="bgc-btn-none active" data-bgc="transparent">无</button>
+          <button type="button" class="bgc-btn-black" data-bgc="#111111">黑</button>
+          <button type="button" class="bgc-btn-red" data-bgc="#d1242f">红</button>
+          <button type="button" class="bgc-btn-white" data-bgc="#ffffff">白</button>
+        </div>
+        <div class="dir-row">
+          <button type="button" class="active" data-dir="h">横排</button>
+          <button type="button" data-dir="v">竖排</button>
+        </div>
+        <div class="rotate-row">
+          <label>旋转</label><input type="number" class="field-rotate" value="0" min="-180" max="180" step="1" /><span>°</span>
+        </div>
+        <div class="stroke-row">
+          <label>描边</label><input type="number" class="field-stroke-w" value="0" min="0" max="10" step="0.5" /><span>px</span>
+          <select class="field-stroke-c"><option value="#000000" selected>黑</option><option value="#d1242f">红</option><option value="#ffffff">白</option></select>
+        </div>
+        <div class="radius-row">
+          <label>圆角</label><input type="number" class="field-radius" value="0" min="0" max="100" step="1" /><span>px</span>
+        </div>
+        <button type="button" class="preview-btn">预览</button>
+        <div class="field-status"></div>`;
+      document.querySelector('.wrap').appendChild(card);
+      bindZoneEvents(card, layerEl, false);
+      if (!isRestoring) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    /* ── 日期格式化 ── */
+    const CN_DIGITS = ['零','一','二','三','四','五','六','七','八','九'];
+    function numToCn(n) { return String(n).split('').map(c => CN_DIGITS[parseInt(c)]).join(''); }
+    function monthToCn(m) { if (m <= 10) return CN_DIGITS[m]; return m === 11 ? '十一' : '十二'; }
+    function dayToCn(d) {
+      if (d <= 10) return CN_DIGITS[d]; if (d < 20) return '十' + CN_DIGITS[d-10];
+      if (d === 20) return '二十'; if (d < 30) return '二十' + CN_DIGITS[d-20];
+      return d === 30 ? '三十' : '三十' + CN_DIGITS[d-30];
+    }
+    const TIAN_GAN = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+    const DI_ZHI   = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+    const DZ_MONTH = ['寅','卯','辰','巳','午','未','申','酉','戌','亥','子','丑'];
+    function yearToGanZhi(y) { return TIAN_GAN[(y-4)%10] + DI_ZHI[(y-4)%12]; }
+    function monthToGanZhi(m) { return DZ_MONTH[m-1] + '月'; }
+    function formatDate(dateStr, fmt) {
+      if (!dateStr) return '';
+      const [fy, fm, fd] = dateStr.split('-').map(Number);
+      const y2 = fy % 100;
+      switch (fmt) {
+        case 'cn_full':   return numToCn(y2)+'年'+monthToCn(fm)+'月'+dayToCn(fd)+'日';
+        case 'cn_ym':     return numToCn(y2)+'·'+monthToCn(fm)+'月';
+        case 'gz':        return yearToGanZhi(fy)+'年·'+monthToGanZhi(fm);
+        case 'num_full':  return y2+'年'+String(fm).padStart(2,'0')+'月'+String(fd).padStart(2,'0')+'日';
+        case 'num_ym':    return y2+'年'+String(fm).padStart(2,'0')+'月';
+        case 'dash_full': return y2+'·'+String(fm).padStart(2,'0')+'·'+String(fd).padStart(2,'0');
+        case 'dash_ym':   return y2+'·'+String(fm).padStart(2,'0');
+        default: return dateStr;
+      }
+    }
+
+    /* ── 创建时间区 ── */
+    function createDateZone() {
+      zoneSeq++;
+      const id = 'layer_d' + zoneSeq, seq = zoneSeq;
+      const frame = document.getElementById('frame');
+      const layerEl = document.createElement('div');
+      layerEl.id = id; layerEl.className = 'text-layer'; layerEl.style.display = 'none';
+      frame.appendChild(layerEl);
+
+      const _today = new Date();
+      const _defaultDate = `${_today.getFullYear()}-${String(_today.getMonth()+1).padStart(2,'0')}-${String(_today.getDate()).padStart(2,'0')}`;
+
+      const card = document.createElement('div');
+      card.className = 'field-card'; card.dataset.layer = id;
+      card.innerHTML = `
+        <div class="zone-header">
+          <input class="zone-name" type="text" value="时间区 ${seq}" placeholder="区域名称" />
+          <button class="zone-pin-btn" title="置顶">⇧</button>
+          <button class="zone-del-btn" title="删除此区">×</button>
+        </div>
+        <input type="date" class="field-input" value="${_defaultDate}" />
+        <select class="field-date-fmt">
+          <option value="cn_full">二六年十一月二十九日</option>
+          <option value="cn_ym">二六·十一月</option>
+          <option value="gz">辛丑年·子月</option>
+          <option value="num_full" selected>26年11月28日</option>
+          <option value="num_ym">26年11月</option>
+          <option value="dash_full">26·11·28</option>
+          <option value="dash_ym">26·11</option>
+        </select>
+        <div class="xywh-row">
+          <label>X</label><input type="number" class="field-x" value="55" min="0" max="270" step="1" />
+          <label>Y</label><input type="number" class="field-y" value="360" min="0" max="400" step="1" />
+          <label>W</label><input type="number" class="field-w" value="160" min="1" max="270" step="1" />
+          <label>H</label><input type="number" class="field-h" value="30" min="1" max="400" step="1" />
+        </div>
+        <div class="align-row">
+          <label>横轴</label>
+          <select class="field-align-h"><option value="flex-start">左</option><option value="center" selected>居中</option><option value="flex-end">右</option></select>
+          <label>纵轴</label>
+          <select class="field-align-v"><option value="flex-start">上</option><option value="center" selected>居中</option><option value="flex-end">下</option></select>
+        </div>
+        <div class="settings-row">
+          <select class="field-font">${FONT_OPTIONS}</select>
+          <input type="number" class="field-size" value="20" min="1" max="200" step="1" />
+          <span class="spacing-label">字距</span><input type="number" class="field-spacing" value="0" min="-100" max="100" step="1" />
+          <span class="spacing-label">行距</span><input type="number" class="field-line-spacing" value="1.3" min="0.1" max="10" step="0.1" />
+        </div>
+        <div class="color-row">
+          <button type="button" class="color-btn-black active" data-color="#111111">黑</button>
+          <button type="button" class="color-btn-red" data-color="#d1242f">红</button>
+          <button type="button" class="color-btn-white" data-color="#ffffff">白</button>
+        </div>
+        <div class="bgc-row">
+          <span class="bgc-label">背景</span>
+          <button type="button" class="bgc-btn-none active" data-bgc="transparent">无</button>
+          <button type="button" class="bgc-btn-black" data-bgc="#111111">黑</button>
+          <button type="button" class="bgc-btn-red" data-bgc="#d1242f">红</button>
+          <button type="button" class="bgc-btn-white" data-bgc="#ffffff">白</button>
+        </div>
+        <div class="dir-row">
+          <button type="button" class="active" data-dir="h">横排</button>
+          <button type="button" data-dir="v">竖排</button>
+        </div>
+        <div class="rotate-row">
+          <label>旋转</label><input type="number" class="field-rotate" value="0" min="-180" max="180" step="1" /><span>°</span>
+        </div>
+        <div class="stroke-row">
+          <label>描边</label><input type="number" class="field-stroke-w" value="0" min="0" max="10" step="0.5" /><span>px</span>
+          <select class="field-stroke-c"><option value="#000000" selected>黑</option><option value="#d1242f">红</option><option value="#ffffff">白</option></select>
+        </div>
+        <div class="radius-row">
+          <label>圆角</label><input type="number" class="field-radius" value="0" min="0" max="100" step="1" /><span>px</span>
+        </div>
+        <button type="button" class="preview-btn">预览</button>
+        <div class="field-status"></div>`;
+      document.querySelector('.wrap').appendChild(card);
+      bindZoneEvents(card, layerEl, true);
+      // 初始显示今天日期
+      const sp = document.createElement('span');
+      sp.textContent = formatDate(_defaultDate, 'num_full');
+      sp.style.width = '100%';
+      layerEl.appendChild(sp);
+      layerEl.style.display = 'flex';
+      // 手动触发一次定位
+      const evCard = { querySelector: sel => card.querySelector(sel), querySelectorAll: sel => card.querySelectorAll(sel) };
+      const xIn = card.querySelector('.field-x'), yIn = card.querySelector('.field-y');
+      const wIn = card.querySelector('.field-w'), hIn = card.querySelector('.field-h');
+      layerEl.style.left = (parseInt(xIn.value)/270*100)+'%';
+      layerEl.style.top  = (parseInt(yIn.value)/400*100)+'%';
+      layerEl.style.width = (parseInt(wIn.value)/270*100)+'%';
+      layerEl.style.height = (parseInt(hIn.value)/400*100)+'%';
+      if (!isRestoring) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    /* ── 通用事件绑定（文字区和时间区共用）── */
+    function bindZoneEvents(card, layerEl, isDate) {
+      const input     = card.querySelector('.field-input');
+      const fmtSel    = card.querySelector('.field-date-fmt');
+      const fontSel   = card.querySelector('.field-font');
+      const sizeIn    = card.querySelector('.field-size');
+      const spacingIn = card.querySelector('.field-spacing');
+      const lineSpIn  = card.querySelector('.field-line-spacing');
+      const xIn = card.querySelector('.field-x'), yIn = card.querySelector('.field-y');
+      const wIn = card.querySelector('.field-w'), hIn = card.querySelector('.field-h');
+      const alignHSel = card.querySelector('.field-align-h');
+      const alignVSel = card.querySelector('.field-align-v');
+      const rotateIn  = card.querySelector('.field-rotate');
+      const strokeWIn = card.querySelector('.field-stroke-w');
+      const strokeCIn = card.querySelector('.field-stroke-c');
+      const radiusIn  = card.querySelector('.field-radius');
+
+      let currentColor = card.querySelector('.color-row button.active')?.dataset.color || '#d1242f';
+      let currentBgc   = 'transparent';
+      let currentDir   = 'h';
+
+      function getText() {
+        if (isDate) return formatDate(input.value, fmtSel.value);
+        return input.value.trim();
+      }
+      function zonePos() {
+        layerEl.style.left   = (parseInt(xIn.value)||0)/270*100+'%';
+        layerEl.style.top    = (parseInt(yIn.value)||0)/400*100+'%';
+        layerEl.style.width  = (parseInt(wIn.value)||100)/270*100+'%';
+        layerEl.style.height = (parseInt(hIn.value)||50)/400*100+'%';
+      }
+      function zoneAlign() {
+        layerEl.style.justifyContent = alignHSel.value;
+        layerEl.style.alignItems     = alignVSel.value;
+        layerEl.style.textAlign = alignHSel.value==='flex-start'?'left':alignHSel.value==='flex-end'?'right':'center';
+      }
+      function zoneStyle() {
+        const fv = fontSel.value;
+        layerEl.style.fontFamily      = fv==='default'?'inherit':(loadedFonts[fv]||fv);
+        layerEl.style.fontSize        = (sizeIn.value||20)+'px';
+        layerEl.style.letterSpacing   = (spacingIn.value||0)+'px';
+        layerEl.style.lineHeight      = lineSpIn.value||1.3;
+        layerEl.style.color           = currentColor;
+        layerEl.style.backgroundColor = currentBgc;
+        layerEl.style.borderRadius    = (radiusIn.value||0)+'px';
+        layerEl.style.webkitTextStrokeWidth = (parseFloat(strokeWIn.value)||0)+'px';
+        layerEl.style.webkitTextStrokeColor = strokeCIn.value||'#000000';
+      }
+      function zoneRotate() {
+        const deg = parseFloat(rotateIn.value)||0;
+        layerEl.style.transform = deg?`rotate(${deg}deg)`:'';
+      }
+      function zoneShow() {
+        const text = getText();
+        if (!text) { layerEl.style.display='none'; return; }
+        layerEl.style.display = 'flex';
+        let sp = layerEl.firstElementChild;
+        if (!sp) { sp = document.createElement('span'); layerEl.appendChild(sp); }
+        sp.textContent    = text;
+        sp.style.writingMode = currentDir==='v'?'vertical-lr':'horizontal-tb';
+        sp.style.width       = currentDir==='v'?'':'100%';
+        zonePos(); zoneAlign(); zoneStyle(); zoneRotate();
+      }
+
+      if (isDate) {
+        input.addEventListener('change', zoneShow);
+        fmtSel.addEventListener('change', () => {
+          if (layerEl.style.display!=='none') {
+            const sp = layerEl.firstElementChild;
+            if (sp) sp.textContent = getText();
+          }
+        });
+      } else {
+        input.addEventListener('input', zoneShow);
+      }
+      card.querySelector('.preview-btn').addEventListener('click', zoneShow);
+
+      [xIn,yIn,wIn,hIn].forEach(el => el.addEventListener('input', () => { if (layerEl.style.display!=='none') zonePos(); }));
+      alignHSel.addEventListener('change', () => { if (layerEl.style.display!=='none') zoneAlign(); });
+      alignVSel.addEventListener('change', () => { if (layerEl.style.display!=='none') zoneAlign(); });
+      fontSel.addEventListener('change', async () => { await loadFont(fontSel.value); if (layerEl.style.display!=='none') zoneStyle(); });
+      [sizeIn,spacingIn,lineSpIn].forEach(el => el.addEventListener('input', () => { if (layerEl.style.display!=='none') zoneStyle(); }));
+
+      card.querySelectorAll('.color-row button').forEach(btn => btn.addEventListener('click', () => {
+        card.querySelectorAll('.color-row button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); currentColor = btn.dataset.color;
+        if (layerEl.style.display!=='none') zoneStyle();
+      }));
+      card.querySelectorAll('.bgc-row button').forEach(btn => btn.addEventListener('click', () => {
+        card.querySelectorAll('.bgc-row button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); currentBgc = btn.dataset.bgc;
+        if (layerEl.style.display!=='none') zoneStyle();
+      }));
+      card.querySelectorAll('.dir-row button').forEach(btn => btn.addEventListener('click', () => {
+        card.querySelectorAll('.dir-row button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); currentDir = btn.dataset.dir;
+        if (layerEl.style.display!=='none') {
+          const sp = layerEl.firstElementChild;
+          if (sp) { sp.style.writingMode = currentDir==='v'?'vertical-lr':'horizontal-tb'; sp.style.width = currentDir==='v'?'':'100%'; }
+          zoneAlign();
+        }
+      }));
+      rotateIn.addEventListener('input', () => { if (layerEl.style.display!=='none') zoneRotate(); });
+      [strokeWIn,strokeCIn,radiusIn].forEach(el => el.addEventListener('input', () => { if (layerEl.style.display!=='none') zoneStyle(); }));
+
+      card.querySelector('.zone-del-btn').addEventListener('click', () => { layerEl.remove(); card.remove(); });
+      card.querySelector('.zone-pin-btn').addEventListener('click', () => pinCard(card));
+    }
+
+    document.getElementById('btnAddZone').addEventListener('click', createZone);
+    document.getElementById('btnAddDate').addEventListener('click', createDateZone);
+
+    /* ── 缩略图：将文字区逐字符画到 canvas ── */
+    function drawZonesOnCanvas(ctx) {
+      const frame = document.getElementById('frame');
+      const frameRect = frame.getBoundingClientRect();
+      const FW = 270, FH = 400;
+      const scaleX = FW / frameRect.width;
+      const scaleY = FH / frameRect.height;
+      const geomScale = Math.min(scaleX, scaleY);
+
+      frame.querySelectorAll('.text-layer').forEach(layer => {
+        if (layer.style.display === 'none') return;
+        const sp = layer.firstElementChild;
+        if (!sp || !sp.textContent.trim()) return;
+
+        const lr = layer.getBoundingClientRect();
+        const lx = (lr.left - frameRect.left) * scaleX;
+        const ly = (lr.top  - frameRect.top)  * scaleY;
+        const lw = lr.width  * scaleX;
+        const lh = lr.height * scaleY;
+        const cs = getComputedStyle(layer);
+
+        ctx.save();
+        const mat = cs.transform;
+        if (mat && mat !== 'none') {
+          const m = mat.match(/matrix\(([^)]+)\)/);
+          if (m) {
+            const vals = m[1].split(',').map(Number);
+            const angle = Math.atan2(vals[1], vals[0]);
+            if (Math.abs(angle) > 0.001) {
+              const cx = lx+lw/2, cy = ly+lh/2;
+              ctx.translate(cx, cy); ctx.rotate(angle); ctx.translate(-cx, -cy);
+            }
+          }
+        }
+        const bgColor = cs.backgroundColor;
+        if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+          const r = (parseFloat(cs.borderRadius)||0)*geomScale;
+          ctx.fillStyle = bgColor;
+          ctx.beginPath();
+          ctx.roundRect ? ctx.roundRect(lx,ly,lw,lh,r) : ctx.rect(lx,ly,lw,lh);
+          ctx.fill();
+        }
+        ctx.beginPath(); ctx.rect(lx,ly,lw,lh); ctx.clip();
+
+        const fontSize   = (parseFloat(cs.fontSize)||20)*geomScale;
+        const color      = cs.color||'#111111';
+        const fontFamily = cs.fontFamily||'sans-serif';
+        const sw2 = (parseFloat(cs.webkitTextStrokeWidth)||0)*geomScale;
+        const sc  = cs.webkitTextStrokeColor||'#000000';
+        ctx.font = `${fontSize}px ${fontFamily}`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = color;
+        const text = sp.textContent;
+        const range = document.createRange();
+        for (let i = 0; i < text.length; i++) {
+          range.setStart(sp.firstChild||sp, i);
+          range.setEnd(sp.firstChild||sp, i+1);
+          const cr = range.getBoundingClientRect();
+          const cx = (cr.left-frameRect.left+cr.width/2)*scaleX;
+          const cy = (cr.top-frameRect.top+cr.height/2)*scaleY;
+          if (sw2 > 0) {
+            ctx.save(); ctx.strokeStyle=sc; ctx.lineWidth=sw2*2; ctx.lineJoin='round';
+            ctx.strokeText(text[i],cx,cy); ctx.restore();
+          }
+          ctx.fillText(text[i],cx,cy);
+        }
+        ctx.restore();
+      });
+    }
+
+    /* ── 发布弹窗 ── */
+    const publishModal = document.getElementById('publishModal');
+    const pubName  = document.getElementById('pubName');
+    const pubType  = document.getElementById('pubType');
+    const pubErr   = document.getElementById('pubErr');
+
+    let typesLoaded = false;
+    async function loadTypes() {
+      if (typesLoaded) return;
+      try {
+        const res = await fetch('../template.php?action=list_types');
+        const data = await res.json();
+        if (data.ok && data.types) {
+          pubType.innerHTML = data.types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+          typesLoaded = true;
+        }
+      } catch { pubType.innerHTML = '<option value="">加载失败</option>'; }
+    }
+
+    document.getElementById('btnPublish').addEventListener('click', async () => {
+      await loadTypes();
+      pubName.value = _savedTplName;
+      if (_savedTypeId) pubType.value = _savedTypeId;
+      pubErr.textContent = '';
+      const isPublished = isEditing && _savedTplName !== '';
+      document.getElementById('pubTitle').textContent = isPublished ? '更新自定义图文模板' : '发布自定义图文模板';
+      document.getElementById('pubSaveAs').style.display = isPublished ? '' : 'none';
+      document.getElementById('pubConfirm').textContent  = isPublished ? '确定更新' : '确定发布';
+      publishModal.classList.add('show');
+      setTimeout(() => pubName.focus(), 60);
+    });
+    document.getElementById('pubCancel').addEventListener('click', () => publishModal.classList.remove('show'));
+    publishModal.addEventListener('click', e => { if (e.target === publishModal) publishModal.classList.remove('show'); });
+
+    document.getElementById('pubConfirm').addEventListener('click', async () => { await doPubOrUpdate(templateId); });
+    document.getElementById('pubSaveAs').addEventListener('click', async () => {
+      const name = pubName.value.trim(), typeId = pubType.value;
+      pubErr.textContent = '';
+      if (!name) { pubErr.textContent='请输入模板名称'; return; }
+      if (!typeId) { pubErr.textContent='请选择分类'; return; }
+      const btn = document.getElementById('pubSaveAs');
+      btn.disabled = true;
+      try {
+        const cfd = new FormData();
+        cfd.append('action','create_template'); cfd.append('type_id',typeId); cfd.append('name',name);
+        const cRes = await fetch('../template.php',{method:'POST',body:cfd});
+        const cData = await cRes.json();
+        if (!cData.ok) { pubErr.textContent=cData.error||'创建失败'; return; }
+        const ok = await doPubOrUpdate(String(cData.id), true);
+        if (ok) setTimeout(() => { location.href=location.pathname+'?template_id='+cData.id; }, 800);
+      } catch (err) { pubErr.textContent='网络错误：'+err.message; }
+      finally { btn.disabled=false; }
+    });
+
+    /* ── 核心发布逻辑 ── */
+    async function doPubOrUpdate(targetId, isSaveAs = false) {
+      const name = pubName.value.trim(), typeId = pubType.value;
+      pubErr.textContent = '';
+      if (!name) { pubErr.textContent='请输入模板名称'; return false; }
+      if (!typeId) { pubErr.textContent='请选择分类'; return false; }
+      const btn = document.getElementById(isSaveAs?'pubSaveAs':'pubConfirm');
+      btn.disabled = true;
+      try {
+        const W=270, H=400;
+        const cv = document.createElement('canvas'); cv.width=W; cv.height=H;
+        const ctx = cv.getContext('2d');
+        ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,H);
+        const bgImg = document.getElementById('preview');
+        if (bgImg && bgImg.naturalWidth) { try { ctx.drawImage(bgImg,0,0,W,H); } catch(_){} }
+        drawZonesOnCanvas(ctx);
+        const thumbBlob = await new Promise(r => cv.toBlob(r,'image/png'));
+
+        const zones = [];
+        document.querySelectorAll('.field-card').forEach(card => {
+          const isDateZone = !!card.querySelector('.field-date-fmt');
+          const zone = {
+            type:    isDateZone?'date':'text',
+            name:    card.querySelector('.zone-name').value,
+            x:       parseInt(card.querySelector('.field-x').value)||0,
+            y:       parseInt(card.querySelector('.field-y').value)||0,
+            w:       parseInt(card.querySelector('.field-w').value)||100,
+            h:       parseInt(card.querySelector('.field-h').value)||50,
+            alignH:  card.querySelector('.field-align-h').value,
+            alignV:  card.querySelector('.field-align-v').value,
+            font:    card.querySelector('.field-font').value,
+            size:    parseInt(card.querySelector('.field-size').value)||20,
+            spacing: parseInt(card.querySelector('.field-spacing').value)||0,
+            lineH:   parseFloat(card.querySelector('.field-line-spacing').value)||1.3,
+            color:   card.querySelector('.color-row button.active')?.dataset.color||'#111111',
+            bgc:     card.querySelector('.bgc-row button.active')?.dataset.bgc||'transparent',
+            dir:     card.querySelector('.dir-row button.active')?.dataset.dir||'h',
+            rotate:  parseFloat(card.querySelector('.field-rotate').value)||0,
+            strokeW: parseFloat(card.querySelector('.field-stroke-w').value)||0,
+            strokeC: card.querySelector('.field-stroke-c').value||'#000000',
+            radius:  parseInt(card.querySelector('.field-radius').value)||0,
+          };
+          if (isDateZone) { zone.dateFmt = card.querySelector('.field-date-fmt').value; }
+          else { zone.minLen=parseInt(card.querySelector('.field-min-len').value)||0; zone.maxLen=parseInt(card.querySelector('.field-max-len').value)||10; zone.defaultText=card.querySelector('.field-input')?.value||''; }
+          zones.push(zone);
+        });
+        const cfg = { kind: 'custom', zones };
+
+        const fd = new FormData();
+        fd.append('action','save_config'); fd.append('template_id',targetId);
+        fd.append('tpl_name',name); fd.append('type_id',typeId);
+        fd.append('config', JSON.stringify(cfg));
+        if (bgFileInput.files[0]) fd.append('bg', bgFileInput.files[0]);
+        if (thumbBlob) fd.append('thumb', thumbBlob, 'thumb.png');
+
+        const res = await fetch('../template.php',{method:'POST',body:fd});
+        const data = await res.json();
+        if (!data.ok) { pubErr.textContent=data.error||'发布失败'; return false; }
+        _savedTplName = name; _savedTypeId = typeId;
+        publishModal.classList.remove('show');
+        if (!isSaveAs) { if (confirm('保存成功！是否返回模板列表？')) location.href='../template.php'; }
+        return true;
+      } catch (err) { pubErr.textContent='网络错误：'+err.message; return false; }
+      finally { btn.disabled=false; }
+    }
+
+    /* ── 恢复已保存的配置 ── */
+    async function restoreConfig() {
+      if (!templateId) return;
+      isRestoring = true;
+      let data;
+      try {
+        const res = await fetch(`../template.php?action=get_config&template_id=${encodeURIComponent(templateId)}`);
+        data = await res.json();
+      } catch { return; }
+      if (!data.ok) return;
+
+      _savedTplName = data.tpl_name || '';
+      _savedTypeId  = String(data.type_id || '');
+
+      // 恢复背景图
+      if (data.bg_img) {
+        preview.crossOrigin = 'anonymous';
+        preview.src = '../' + data.bg_img;
+      }
+
+      const cfg = (() => { try { return JSON.parse(data.config||'{}'); } catch { return {}; } })();
+
+      // 恢复区域
+      if (Array.isArray(cfg.zones)) {
+        for (const z of cfg.zones) {
+          if (z.type === 'date') createDateZone(); else createZone();
+          const card = document.querySelector('.wrap .field-card:last-child');
+          if (!card) continue;
+
+          const nameEl = card.querySelector('.zone-name');
+          if (nameEl && z.name) nameEl.value = z.name;
+
+          const fX = card.querySelector('.field-x'); if (fX) fX.value = z.x??0;
+          const fY = card.querySelector('.field-y'); if (fY) fY.value = z.y??0;
+          const fW = card.querySelector('.field-w'); if (fW) fW.value = z.w??100;
+          const fH = card.querySelector('.field-h'); if (fH) fH.value = z.h??50;
+
+          const aH = card.querySelector('.field-align-h'); if (aH && z.alignH) aH.value = z.alignH;
+          const aV = card.querySelector('.field-align-v'); if (aV && z.alignV) aV.value = z.alignV;
+
+          const fFont = card.querySelector('.field-font');
+          if (fFont && z.font) { fFont.value = z.font; loadFont(z.font); }
+          const fSize = card.querySelector('.field-size'); if (fSize) fSize.value = z.size??20;
+          const fSp = card.querySelector('.field-spacing'); if (fSp) fSp.value = z.spacing??0;
+          const fLine = card.querySelector('.field-line-spacing'); if (fLine) fLine.value = z.lineH??1.3;
+
+          const colorBtn = [...card.querySelectorAll('.color-row button')].find(b => b.dataset.color === z.color);
+          if (colorBtn) colorBtn.click();
+          const bgcBtn = [...card.querySelectorAll('.bgc-row button')].find(b => b.dataset.bgc === z.bgc);
+          if (bgcBtn) bgcBtn.click();
+          const dirBtn = [...card.querySelectorAll('.dir-row button')].find(b => b.dataset.dir === z.dir);
+          if (dirBtn) dirBtn.click();
+
+          const fRot = card.querySelector('.field-rotate'); if (fRot) fRot.value = z.rotate??0;
+          const fStW = card.querySelector('.field-stroke-w'); if (fStW) fStW.value = z.strokeW??0;
+          const fStC = card.querySelector('.field-stroke-c'); if (fStC && z.strokeC) fStC.value = z.strokeC;
+          const fRad = card.querySelector('.field-radius'); if (fRad) fRad.value = z.radius??0;
+
+          if (z.type !== 'date') {
+            const fMin = card.querySelector('.field-min-len'); if (fMin) fMin.value = z.minLen??0;
+            const fMax = card.querySelector('.field-max-len'); if (fMax) fMax.value = z.maxLen??10;
+            const fInput = card.querySelector('.field-input');
+            if (fInput && z.defaultText) { fInput.value = z.defaultText; fInput.dispatchEvent(new Event('input')); }
+          }
+          if (z.type === 'date') {
+            const fFmt = card.querySelector('.field-date-fmt');
+            if (fFmt && z.dateFmt) { fFmt.value = z.dateFmt; fFmt.dispatchEvent(new Event('change')); }
+            card.querySelector('.preview-btn').click();
+          }
+        }
+      }
+      isRestoring = false;
+    }
+    restoreConfig();
+  </script>
+</body>
+</html>

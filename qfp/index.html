@@ -3,9 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>13图片手势预览（3:4 框）12</title>
-  <!-- 字体会通过 JS 动态加载，只加载需要的文字 -->
-  <script src="tricolor.js"></script>
+  <title>祝福语模板</title>
   <style>
     :root {
       --bg: #0b0f14;
@@ -22,596 +20,12 @@
       background: var(--bg);
       color: var(--text);
     }
-    .wrap {
-      padding: 12px;
-      max-width: 920px;
-      margin: 0 auto;
-    }
-    .toolbar {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      justify-content: space-between;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 10px;
-    }
-    .toolbar .left {
-      display: flex;
-      gap: 10px;
-      align-items: flex-start;
-      flex-direction: column;
-    }
-    .toolbar .left-actions {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-    .url-param {
-      color: #666;
-      font-size: 13px;
-      line-height: 1.2;
-      word-break: break-all;
-      margin-bottom: 6px;
-      display: none;
-    }
-    .initial-picker .url-param {
-      margin-bottom: 12px;
-      text-align: center;
-      max-width: 80vw;
-    }
-    .toolbar .url-param {
-      max-width: 60vw;
-    }
-    .btn-loading {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    button {
-      border: 0;
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-weight: 600;
-      background: var(--btn);
-      color: white;
-      cursor: pointer;
-    }
-    button.secondary {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text);
-    }
-    .hint {
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.2;
-    }
 
-    .frame-hint {
-      text-align: center;
-      color: #94a3b8;
-      font-size: 13px;
-      margin-top: 10px;
-    }
-
-    .frame {
-      margin-top: 6px;
-      width: 100%;
-      aspect-ratio: 270 / 400;
-      background: #0f172a;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      overflow: hidden;
-      position: relative;
-      touch-action: none; /* 关键：关闭浏览器默认手势 */
-      user-select: none;
-    }
-
-    .overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.55);
-      display: none;
-      place-items: center;
-      z-index: 999;
-      padding: 16px;
-    }
-    .overlay.show {
-      display: grid;
-    }
-    .overlay-card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px 18px;
-      width: min(90vw, 360px);
-      color: var(--text);
-      text-align: center;
-    }
-    .overlay-title {
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 10px;
-    }
-    .overlay-bar {
-      height: 8px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.08);
-      overflow: hidden;
-      margin-bottom: 10px;
-    }
-    .overlay-bar > span {
-      display: block;
-      height: 100%;
-      width: 45%;
-      background: var(--btn);
-      border-radius: inherit;
-      animation: loadingBar 1.2s ease-in-out infinite;
-    }
-    @keyframes loadingBar {
-      0% { transform: translateX(-100%); }
-      50% { transform: translateX(80%); }
-      100% { transform: translateX(220%); }
-    }
-    .overlay-hint {
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .frame .placeholder {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-items: center;
-      color: var(--muted);
-      padding: 18px;
-      text-align: center;
-    }
-
-    .text-layer {
-      position: absolute;
-      left: 0;
-      top: 0;
-      padding: 0;
-      border-radius: 12px;
-      z-index: 10;
-      color: white;
-      font-family: 'CustomSubset', 'LXGW WenKai', cursive;
-      font-size: 18px;
-      line-height: 1.25;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
-      pointer-events: auto;
-      touch-action: none;
-      white-space: pre-wrap;
-      word-break: break-word;
-      display: none;
-    }
-    .text-layer.preview-hidden {
-      opacity: 0;
-    }
-
-    #img {
-      position: absolute;
-      left: 0;
-      top: 0;
-      transform-origin: 0 0;
-      will-change: transform;
-      -webkit-user-drag: none;
-      user-select: none;
-      pointer-events: none; /* 手势在 frame 上处理 */
-    }
-
-    .meta {
-      margin-top: 10px;
-      color: var(--muted);
-      font-size: 12px;
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .caption {
-      margin-top: 12px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 10px;
-    }
-    .caption label {
-      display: block;
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
-    .caption textarea {
-      width: 100%;
-      resize: none;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,0.03);
-      color: var(--text);
-      padding: 10px 12px;
-      font-size: 16px;
-      line-height: 1.3;
-      outline: none;
-    }
-    .caption textarea:focus {
-      border-color: rgba(31,111,235,0.7);
-      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
-    }
-    .font-controls {
-      display: flex;
-      gap: 10px;
-      margin-top: 10px;
-      align-items: center;
-    }
-    .size-controls {
-      display: flex;
-      gap: 10px;
-      margin-top: 10px;
-    }
-    .color-controls {
-      display: flex;
-      gap: 10px;
-      margin-top: 10px;
-    }
-    .color-controls button {
-      flex: 1;
-    }
-    .color-btn.black { background: #111; }
-    .color-btn.red { background: #d1242f; }
-    .color-btn.white { background: #ffffff; color: #111; }
-
-    /* 录音按钮样式 */
-    .record-section {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      margin-top: 20px;
-    }
-    .record-btn {
-      width: 96px;
-      height: 96px;
-      border-radius: 50%;
-      border: 2px solid var(--border);
-      background: var(--panel);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    .record-btn:hover {
-      border-color: #d1242f;
-      background: rgba(209, 36, 47, 0.1);
-    }
-    .record-btn:active {
-      transform: scale(0.95);
-    }
-    .record-btn.recording {
-      border-color: #d1242f;
-      background: rgba(209, 36, 47, 0.2);
-      animation: pulse 1s infinite;
-    }
-    .record-btn.recording svg path {
-      fill: #d1242f;
-    }
-    @keyframes pulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(209, 36, 47, 0.4); }
-      50% { box-shadow: 0 0 0 10px rgba(209, 36, 47, 0); }
-    }
-    .record-progress {
-      display: none;
-      width: 80px;
-      height: 6px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 3px;
-      margin-bottom: 10px;
-      position: relative;
-      overflow: hidden;
-    }
-    .record-progress.show {
-      display: block;
-    }
-    .record-progress-bar {
-      height: 100%;
-      background: #d1242f;
-      border-radius: 3px;
-      width: 100%;
-      transition: width 0.1s linear;
-    }
-    .record-timer {
-      position: absolute;
-      top: -20px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 14px;
-      color: #d1242f;
-      font-weight: bold;
-    }
-    .record-hint {
-      margin-top: 10px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    /* 发送祝福按钮 */
-    .send-section {
-      margin-top: 20px;
-      display: flex;
-      justify-content: center;
-    }
-    .send-btn {
-      background: #8b0000;
-      color: #fff;
-      border: none;
-      border-radius: 12px;
-      padding: 14px 40px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    .send-btn:hover {
-      background: #a00000;
-    }
-    .send-btn:active {
-      transform: scale(0.98);
-    }
-
-    /* 发送成功提示 */
-    .send-success-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: #0f172a;
-      z-index: 9999;
-      justify-content: center;
-      align-items: center;
-    }
-    .send-success-overlay.show {
-      display: flex;
-    }
-    .send-success-content {
-      text-align: center;
-      padding: 20px;
-    }
-    .send-success-text {
-      font-size: 20px;
-      color: #fff;
-      margin-bottom: 16px;
-    }
-    .send-success-time {
-      font-size: 16px;
-      color: #d1242f;
-    }
-
-    /* 三色屏预览样式 */
-    .tricolor-section {
-      margin-top: 12px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 10px;
-    }
-    .tricolor-section label {
-      display: block;
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
-    .tricolor-controls {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    .tricolor-controls button {
-      flex: 1;
-      min-width: 80px;
-    }
-    .tricolor-controls select {
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,0.03);
-      color: var(--text);
-      padding: 10px 12px;
-      font-size: 14px;
-      outline: none;
-    }
-    .tricolor-controls select:focus {
-      border-color: rgba(31,111,235,0.7);
-      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
-    }
-    .tricolor-preview {
-      margin-top: 10px;
-      display: none;
-    }
-    .tricolor-preview.show {
-      display: block;
-    }
-    .tricolor-preview canvas {
-      width: 100%;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: #fff;
-    }
-    .tricolor-params {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 8px;
-      margin-top: 10px;
-    }
-    .tricolor-params .param-group {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .tricolor-params label {
-      font-size: 11px;
-      color: var(--muted);
-      margin: 0;
-    }
-    .tricolor-params input[type="range"] {
-      width: 100%;
-      accent-color: var(--btn);
-    }
-    .tricolor-params .param-value {
-      font-size: 11px;
-      color: var(--text);
-      text-align: right;
-    }
-    .tricolor-params .param-group.checkbox-group {
-      flex-direction: row;
-      align-items: center;
-      gap: 8px;
-    }
-    .tricolor-params input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
-      accent-color: var(--btn);
-    }
-
-    .size-controls button {
-      flex: 1;
-    }
-    .font-controls select {
-      flex: 1;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,0.03);
-      color: var(--text);
-      padding: 10px 12px;
-      font-size: 14px;
-      outline: none;
-    }
-    .font-controls select:focus {
-      border-color: rgba(31,111,235,0.7);
-      box-shadow: 0 0 0 3px rgba(31,111,235,0.2);
-    }
-    #fontStatus {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 6px;
-    }
-    code { color: #c9d1d9; }
-    .tricolor-mode-label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 14px;
-      color: var(--text);
-      cursor: pointer;
-      user-select: none;
-    }
-    .tricolor-mode-label input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
-      accent-color: var(--btn);
-      cursor: pointer;
-    }
-
-    /* 初始状态：居中显示选择按钮 */
-    .initial-picker {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;   /* flex-start 避免 overflow+center 导致顶部裁切 */
-      background: var(--bg);
-      z-index: 100;
-      padding: 0;
-      overflow-y: auto;
-    }
-    /* tab 下方的 url 参数不在初始 picker 区显示 */
-    #urlParamInitial { display: none !important; }
-    /* 标题在 picker 内的宽度约束 */
-    .initial-picker > .page-header {
-      width: 100%;
-      max-width: 480px;
-      padding-top: 24px;
-    }
-    /* tab-bar 在 picker 内撑满可用宽度 */
-    .initial-picker > .tab-bar {
-      width: 100%;
-      max-width: 480px;
-      margin: 14px 0 0;
-    }
-    /* 瓷片+按钮区域：flex-start 让内容紧跟 Tab 下方，不居中浮动 */
-    .picker-main {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      width: 100%;
-      padding: 20px;
-    }
-    .initial-picker.hidden {
-      display: none;
-    }
-    .initial-picker button {
-      padding: 20px 40px;
-      font-size: 18px;
-      border-radius: 16px;
-    }
-    .tile-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      width: 100%;
-      max-width: 480px;
-      margin-bottom: 20px;
-    }
-    .tile {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      overflow: hidden;
-      cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
-    .tile:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
-    }
-    .tile:active {
-      transform: scale(0.97);
-    }
-    .tile img {
-      width: 100%;
-      display: block;
-      aspect-ratio: 270 / 400;
-      object-fit: cover;
-    }
-    .tile-label {
-      text-align: center;
-      padding: 8px 6px;
-      font-size: 13px;
-      color: var(--muted);
-    }
-
-    /* 主内容初始隐藏 */
-    .main-content {
-      display: none;
-    }
-    .main-content.show {
-      display: block;
-    }
-
-    /* 隐藏顶部工具栏 */
-    .toolbar.hidden {
-      display: none;
-    }
-
-    /* 页头 */
     .page-header {
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 18px 12px 0;
+      padding: 24px 12px 0;
     }
     .page-title {
       font-size: 20px;
@@ -620,10 +34,10 @@
       letter-spacing: 4px;
     }
 
-    /* Tab */
     .tab-bar {
       display: flex;
-      margin: 14px 12px 0;
+      margin: 14px auto 0;
+      max-width: 480px;
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -645,1373 +59,221 @@
       background: var(--btn);
       color: #fff;
     }
+
+    .sub-bar {
+      display: none;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin: 10px auto 0;
+      max-width: 480px;
+      padding: 0 12px;
+    }
+    .sub-bar.show { display: flex; }
+    .sub-item {
+      padding: 5px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s;
+      user-select: none;
+    }
+    .sub-item.active {
+      background: var(--btn);
+      color: #fff;
+      border-color: var(--btn);
+    }
+
+    .picker-main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      padding: 20px;
+    }
+
+    .tile-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      width: 100%;
+      max-width: 480px;
+    }
+    .tile {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      text-decoration: none;
+      color: inherit;
+    }
+    .tile:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    }
+    .tile:active {
+      transform: scale(0.97);
+    }
+    .tile img {
+      width: 100%;
+      display: block;
+      aspect-ratio: 270 / 400;
+      object-fit: cover;
+    }
+    .tile-label {
+      text-align: center;
+      padding: 8px 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
   </style>
 </head>
 <body>
 
-  <!-- 初始居中选择按钮 -->
-  <div id="initialPicker" class="initial-picker">
-
-    <!-- 标题和 Tab：放在 picker 内，不被 fixed 层遮住 -->
-    <div class="page-header">
-      <span class="page-title">祝福语</span>
-    </div>
-    <div class="tab-bar">
-      <div class="tab-item active">图文类</div>
-      <div class="tab-item">图像类</div>
-    </div>
-
-    <!-- 瓷片 + 按钮：用 picker-main 做垂直居中，避免 overflow 顶部裁切 -->
-    <div class="picker-main">
-      <div id="urlParamInitial" class="url-param"></div>
-      <div class="tile-grid" id="tileGrid"></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:14px;" id="pickerActions">
-        <label class="tricolor-mode-label"><input type="checkbox" id="chkTricolorInitial"> 三色图</label>
-        <button id="btnPickInitial">选择图片</button>
-      </div>
-      <input id="fileInitial" type="file" accept="image/*" hidden />
-    </div>
-
+  <div class="page-header">
+    <span class="page-title">祝福语</span>
   </div>
-
-  <div id="mainContent" class="wrap main-content">
-    <div class="toolbar hidden">
-      <div class="left">
-        <div id="urlParamToolbar" class="url-param"></div>
-        <div class="left-actions">
-          <label class="tricolor-mode-label"><input type="checkbox" id="chkTricolorToolbar"> 三色图</label>
-          <button id="btnPick">选图片</button>
-          <button id="btnReset" class="secondary" disabled>重置</button>
-          <input id="file" type="file" accept="image/*" hidden />
-        </div>
-      </div>
-      <div class="hint">
-        单指拖动移动；双指缩放/移动（图片只显示在 3:4 框内）
-      </div>
-    </div>
-
-    <div class="frame-hint">图片可以拖动和缩放</div>
-    <div id="frame" class="frame" aria-label="预览裁剪框">
-      <div id="placeholder" class="placeholder">
-        点击“选图片”从相册选择一张图片
-      </div>
-      <div id="textLayer" class="text-layer"></div>
-      <img id="img" alt="" />
-      <canvas id="tricolorOverlay" style="position:absolute;left:0;top:0;width:100%;height:100%;display:none;"></canvas>
-    </div>
-
-    <div class="caption">
-      <textarea id="captionInput" rows="2" placeholder="请输入祝福语.."></textarea>
-      <div class="font-controls">
-        <select id="fontSelect">
-          <option value="default">默认字体</option>
-          <option value="AlimamaDaoLiTi">刀隶体</option>
-          <option value="AlimamaDongFangDaKai">东方大楷</option>
-          <option value="AlimamaShuHeiTi">数黑体</option>
-          <option value="DingTalkJinBuTi">进步体</option>
-          <option value="TaoBaoMaiCaiTi">买菜体</option>
-        </select>
-        <button id="btnLoadFont">添加祝福语</button>
-      </div>
-      <div class="size-controls" style="display:none;">
-        <button id="btnFontSizeDown" class="secondary">缩小</button>
-        <button id="btnFontSizeUp">放大</button>
-        <button id="btnTextDirection" class="secondary">竖</button>
-      </div>
-      <div class="color-controls" style="display:none;">
-        <button id="btnColorBlack" class="color-btn black">黑</button>
-        <button id="btnColorRed" class="color-btn red">红</button>
-        <button id="btnColorWhite" class="color-btn white">白</button>
-      </div>
-      <div id="fontStatus"></div>
-    </div>
-
-    <!-- 录音按钮 -->
-    <div class="record-section" style="display:none;">
-      <div class="record-progress" id="recordProgress">
-        <div class="record-progress-bar" id="recordProgressBar"></div>
-        <span class="record-timer" id="recordTimer">10</span>
-      </div>
-      <button id="btnRecord" class="record-btn" aria-label="录音">
-        <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" width="56" height="56"><path d="M429.8 650.2h164.5c53.7 0 97.6-43.9 97.6-97.6V377.1H585.3v-40h106.6v-40H585.3v-40h106.6v-40H585.3v-40h106.6v-15.6c0-53.7-43.9-97.6-97.6-97.6H429.8c-53.7 0-97.6 43.9-97.6 97.6v15.6h106.6v40H332.1v40h106.6v40H332.1v40h106.6v40H332.1v175.5c0 53.7 44 97.6 97.7 97.6z" fill="#bfbfbf"></path><path d="M825.1 380.4c-18.4 0-33.3 14.9-33.3 33.3v186.5c0 69.8-57.5 126.6-128.3 126.6h-303c-70.7 0-128.3-56.8-128.3-126.6V413.7c0-18.4-14.9-33.3-33.3-33.3s-33.3 14.9-33.3 33.3v186.5c0 106.5 87.4 193.2 194.9 193.2H472V920c0 22 18 40 40 40s40-18 40-40V793.5h111.5c107.5 0 194.9-86.7 194.9-193.2V413.7c0-18.4-14.9-33.3-33.3-33.3z" fill="#bfbfbf"></path></svg>
-      </button>
-      <div class="record-hint">可录制祝福语</div>
-      <audio id="recordedAudio" style="display:none;"></audio>
-    </div>
-
-    <!-- 发送祝福按钮 -->
-    <div class="send-section" style="display:none;">
-      <button id="btnSendBlessing" class="send-btn">发送祝福</button>
-    </div>
-
-    <!-- 三色屏效果 -->
-    <div class="tricolor-section" style="display:none;">
-      <label>仿三色墨水屏效果</label>
-      <div class="tricolor-controls">
-        <button id="btnTricolorDownload" class="secondary" disabled>下载三色图</button>
-        <select id="outputScale">
-          <option value="1">1x</option>
-          <option value="2" selected>2x</option>
-          <option value="3">3x</option>
-          <option value="0">原图</option>
-        </select>
-      </div>
-      <div id="tricolorInfo" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
-      <!-- 隐藏的参数控件 -->
-      <div class="tricolor-params" style="display:none;">
-        <input type="range" id="bwThreshold" value="120" />
-        <input type="range" id="gammaSlider" value="90" />
-        <input type="range" id="autoLevelsSlider" value="15" />
-        <input type="range" id="satThreshold" value="40" />
-        <input type="range" id="valThreshold" value="20" />
-        <input type="range" id="redDelta" value="50" />
-        <input type="range" id="hueWidth" value="6" />
-        <input type="range" id="redThreshold" value="100" />
-        <input type="range" id="redBoost" value="15" />
-        <input type="checkbox" id="redDither" checked />
-        <input type="checkbox" id="autoLevels" checked />
-      </div>
-    </div>
+  <div class="tab-bar" id="tabBar">
+    <div class="tab-item" data-tab="graphic">图文类</div>
+    <div class="tab-item" data-tab="photo">图像类</div>
   </div>
+  <div class="sub-bar" id="subBar"></div>
 
-  <!-- 发送成功提示 -->
-  <div id="sendSuccessOverlay" class="send-success-overlay">
-    <div class="send-success-content">
-      <div class="send-success-text">祝福已经发送到你的祝福牌</div>
-      <div class="send-success-time">将在 00:00 分更新</div>
-    </div>
-  </div>
-
-  <div id="loadingOverlay" class="overlay" role="dialog" aria-live="polite" aria-label="字体加载中">
-    <div class="overlay-card">
-      <div class="overlay-title">正在生成文字（v2）</div>
-      <div class="overlay-bar"><span></span></div>
-      <div class="overlay-hint">请稍后…</div>
-    </div>
+  <div class="picker-main">
+    <div class="tile-grid" id="tileGrid"></div>
   </div>
 
   <script>
-        // 页面加载时自动请求麦克风权限
-        document.addEventListener('DOMContentLoaded', () => {
-          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ audio: true })
-              .then(stream => {
-                // 立即关闭流，避免占用麦克风
-                stream.getTracks().forEach(track => track.stop());
-                console.log('[麦克风] 权限已请求');
-              })
-              .catch(err => {
-                console.warn('[麦克风] 权限请求失败:', err);
-              });
+    const grid = document.getElementById('tileGrid');
+    const tabBar = document.getElementById('tabBar');
+    const subBar = document.getElementById('subBar');
+    const tabs = tabBar.querySelectorAll('.tab-item');
+    const search = window.location.search || '';
+
+    let allTemplates = [];
+    let allTypes = [];       // [{id, name}]
+    let activeTab = null;    // 'graphic' | 'photo' | null
+    let activeTypeId = null; // number | null
+
+    // 判断模板属于哪个大类
+    function tplTab(tpl) {
+      return tpl.kind === 'photo' ? 'photo' : 'graphic';
+    }
+
+    // 渲染瓷片列表
+    function renderGrid(list) {
+      grid.innerHTML = '';
+      list.forEach(tpl => {
+        const a = document.createElement('a');
+        a.className = 'tile';
+        const params = new URLSearchParams({ template_id: tpl.id, bg: tpl.bg, top: tpl.top });
+        const applyPage = tpl.kind === 'photo' ? 'dl/template/pic_apply.html'
+                        : tpl.kind === 'custom' ? 'dl/template/custom_apply.html'
+                        : 'dl/template/apply.html';
+        a.href = applyPage + '?' + params.toString() + (search ? '&' + search.slice(1) : '');
+        const img = document.createElement('img');
+        img.src = tpl.thumb ? ('dl/' + tpl.thumb) : '';
+        img.alt = tpl.name;
+        img.onerror = function() { this.style.display = 'none'; };
+        const label = document.createElement('div');
+        label.className = 'tile-label';
+        label.textContent = tpl.name;
+        a.appendChild(img);
+        a.appendChild(label);
+        grid.appendChild(a);
+      });
+    }
+
+    // 过滤并渲染
+    function applyFilter() {
+      let filtered = allTemplates;
+      if (activeTab) {
+        filtered = filtered.filter(t => tplTab(t) === activeTab);
+      }
+      if (activeTypeId !== null) {
+        filtered = filtered.filter(t => t.type_id === activeTypeId);
+      }
+      renderGrid(filtered);
+    }
+
+    // 渲染子分类按钮（只显示当前大类下实际有模板的分类）
+    function renderSubBar() {
+      subBar.innerHTML = '';
+      if (!activeTab) {
+        subBar.classList.remove('show');
+        return;
+      }
+      // 找出当前大类下所有模板的 type_id 集合
+      const tabTemplates = allTemplates.filter(t => tplTab(t) === activeTab);
+      const usedTypeIds = new Set(tabTemplates.map(t => t.type_id));
+      const visibleTypes = allTypes.filter(tp => usedTypeIds.has(tp.id));
+      if (visibleTypes.length === 0) {
+        subBar.classList.remove('show');
+        return;
+      }
+      visibleTypes.forEach(tp => {
+        const btn = document.createElement('div');
+        btn.className = 'sub-item';
+        btn.textContent = tp.name;
+        btn.dataset.typeId = tp.id;
+        btn.addEventListener('click', () => {
+          if (activeTypeId === tp.id) {
+            // 再次点击取消选中
+            activeTypeId = null;
+            subBar.querySelectorAll('.sub-item').forEach(b => b.classList.remove('active'));
+          } else {
+            activeTypeId = tp.id;
+            subBar.querySelectorAll('.sub-item').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
           }
+          applyFilter();
         });
-    // 初始选择器
-    const initialPicker = document.getElementById('initialPicker');
-    const btnPickInitial = document.getElementById('btnPickInitial');
-    const fileInitial = document.getElementById('fileInitial');
-    const mainContent = document.getElementById('mainContent');
-    const urlParamInitial = document.getElementById('urlParamInitial');
-
-    const frame = document.getElementById('frame');
-    const img = document.getElementById('img');
-    const placeholder = document.getElementById('placeholder');
-    const textLayer = document.getElementById('textLayer');
-    const captionInput = document.getElementById('captionInput');
-    const fileInput = document.getElementById('file');
-    const btnPick = document.getElementById('btnPick');
-    const btnReset = document.getElementById('btnReset');
-    const urlParamToolbar = document.getElementById('urlParamToolbar');
-    const fontSelect = document.getElementById('fontSelect');
-    const btnLoadFont = document.getElementById('btnLoadFont');
-    const fontStatus = document.getElementById('fontStatus');
-    const loadingOverlay = document.getElementById('loadingOverlay');
-    const btnFontSizeDown = document.getElementById('btnFontSizeDown');
-    const btnFontSizeUp = document.getElementById('btnFontSizeUp');
-    const btnColorBlack = document.getElementById('btnColorBlack');
-    const btnColorRed = document.getElementById('btnColorRed');
-    const btnColorWhite = document.getElementById('btnColorWhite');
-
-    // 三色效果相关
-    const bwThresholdSlider = document.getElementById('bwThreshold');
-    const gammaSlider = document.getElementById('gammaSlider');
-    const autoLevelsSlider = document.getElementById('autoLevelsSlider');
-    const satThresholdSlider = document.getElementById('satThreshold');
-    const valThresholdSlider = document.getElementById('valThreshold');
-    const redDeltaSlider = document.getElementById('redDelta');
-    const hueWidthSlider = document.getElementById('hueWidth');
-    const redThresholdSlider = document.getElementById('redThreshold');
-    const redBoostSlider = document.getElementById('redBoost');
-    const redDitherCheckbox = document.getElementById('redDither');
-    const autoLevelsCheckbox = document.getElementById('autoLevels');
-    const outputScaleSelect = document.getElementById('outputScale');
-    const tricolorInfo = document.getElementById('tricolorInfo');
-    let lastTricolorResult = null;
-    let tricolorRenderPending = false;
-    let isTricolorMode = false;
-
-    const chkTricolorInitial = document.getElementById('chkTricolorInitial');
-    const chkTricolorToolbar = document.getElementById('chkTricolorToolbar');
-    chkTricolorInitial.addEventListener('change', () => { chkTricolorToolbar.checked = chkTricolorInitial.checked; });
-    chkTricolorToolbar.addEventListener('change', () => { chkTricolorInitial.checked = chkTricolorToolbar.checked; });
-
-    const rawQuery = window.location.search ? window.location.search.slice(1) : '';
-    const urlParamText = rawQuery ? decodeURIComponent(rawQuery) : '';
-    [urlParamInitial, urlParamToolbar].forEach((el) => {
-      if (!el) return;
-      if (urlParamText) {
-        el.textContent = urlParamText;
-        el.style.display = 'block';
-      } else {
-        el.style.display = 'none';
-      }
-    });
-
-    // 远程字体服务地址（已改为远程 HTTPS）
-    const FONT_API = 'https://www.twobaozi.com/qfp/font/dfont.php';
-    let currentFontFamily = 'LXGW WenKai Lite';
-
-
-    /** @type {Map<number, {x:number,y:number}>} */
-    const pointers = new Map();
-
-    const state = {
-      hasImage: false,
-      objectUrl: null,
-
-      // transform state
-      scale: 1,
-      tx: 0,
-      ty: 0,
-      minScale: 1,
-      maxScale: 6,
-
-      // gesture start snapshots
-      panStart: null,
-      pinchStart: null,
-
-      imgW: 0,
-      imgH: 0,
-      frameW: 0,
-      frameH: 0,
-    };
-
-    const fontState = {
-      size: 34,
-      min: 12,
-      max: 48,
-      step: 2,
-    };
-
-    const colorState = {
-      color: '#d1242f',
-    };
-
-    // 文字锁定状态：加载完成后锁定图片
-    let textLocked = false;
-    let committedImageView = null;
-    let pendingImageViewRestore = null;
-    let pendingImageViewRestoreTimer = null;
-
-    function applyTextShadowForColor(color) {
-      if (color === '#d1242f' || color === '#111111') {
-        textLayer.style.textShadow = '0 1px 2px rgba(255,255,255,0.8)';
-      } else {
-        textLayer.style.textShadow = '0 1px 2px rgba(0,0,0,0.45)';
-      }
-    }
-
-    // 文字拖动状态
-
-    const textState = {
-      x: null,
-      y: null,
-      dragStart: null,
-      pointerId: null,
-      margin: 12,
-    };
-
-    function clamp(v, min, max) {
-      return Math.max(min, Math.min(max, v));
-    }
-
-    function frameRect() {
-      return frame.getBoundingClientRect();
-    }
-
-    function toLocalPoint(ev) {
-      const r = frameRect();
-      return { x: ev.clientX - r.left, y: ev.clientY - r.top };
-    }
-
-    function applyTransform() {
-      img.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
-    }
-
-    function applyTextTransform() {
-      if (textState.x === null || textState.y === null) return;
-      textLayer.style.transform = `translate(${Math.round(textState.x)}px, ${Math.round(textState.y)}px)`;
-    }
-
-    function clampTextPosition() {
-      const r = frameRect();
-      const textW = textLayer.offsetWidth;
-      const textH = textLayer.offsetHeight;
-      const m = textState.margin;
-      if (!r.width || !r.height || !textW || !textH) return;
-
-      const minX = m;
-      const minY = m;
-      const maxX = Math.max(m, r.width - textW - m);
-      const maxY = Math.max(m, r.height - textH - m);
-
-      textState.x = clamp(textState.x, minX, maxX);
-      textState.y = clamp(textState.y, minY, maxY);
-      applyTextTransform();
-    }
-
-    function updateScaleBounds(fw, fh) {
-      const iw = state.imgW;
-      const ih = state.imgH;
-      if (!fw || !fh || !iw || !ih) return false;
-
-      const scale = Math.max(fw / iw, fh / ih);
-      state.minScale = scale;
-      state.maxScale = Math.max(scale * 6, scale + 0.0001);
-      state.frameW = fw;
-      state.frameH = fh;
-      return true;
-    }
-
-    function computeCoverTransform() {
-      const r = frameRect();
-      const fw = r.width;
-      const fh = r.height;
-
-      if (!updateScaleBounds(fw, fh)) return;
-
-      state.scale = state.minScale;
-      const dispW = state.imgW * state.scale;
-      const dispH = state.imgH * state.scale;
-
-      // 居中
-      state.tx = (fw - dispW) / 2;
-      state.ty = (fh - dispH) / 2;
-
-      clampTranslate();
-      applyTransform();
-    }
-
-    function captureCurrentImageView() {
-      if (!state.hasImage || !state.minScale || !state.scale) return null;
-      const r = frameRect();
-      if (!r.width || !r.height) return null;
-
-      return {
-        frameW: r.width,
-        frameH: r.height,
-        minScale: state.minScale,
-        scale: state.scale,
-        tx: state.tx,
-        ty: state.ty,
-      };
-    }
-
-    function commitCurrentImageView() {
-      const snapshot = captureCurrentImageView();
-      if (snapshot) {
-        committedImageView = snapshot;
-      }
-    }
-
-    function restoreImageViewSnapshot(snapshot) {
-      if (!snapshot || !state.hasImage) return;
-
-      const r = frameRect();
-      const nextFrameW = r.width;
-      const nextFrameH = r.height;
-      if (!nextFrameW || !nextFrameH) return;
-
-      const contentCenter = {
-        x: (snapshot.frameW / 2 - snapshot.tx) / snapshot.scale,
-        y: (snapshot.frameH / 2 - snapshot.ty) / snapshot.scale,
-      };
-      const zoomRatio = snapshot.scale / snapshot.minScale;
-
-      if (!updateScaleBounds(nextFrameW, nextFrameH)) return;
-
-      state.scale = clamp(state.minScale * zoomRatio, state.minScale, state.maxScale);
-      state.tx = nextFrameW / 2 - contentCenter.x * state.scale;
-      state.ty = nextFrameH / 2 - contentCenter.y * state.scale;
-
-      clampTranslate();
-      applyTransform();
-    }
-
-    function queueImageViewRestore(snapshot) {
-      if (!snapshot) return;
-      pendingImageViewRestore = snapshot;
-
-      const applyRestore = () => {
-        if (!pendingImageViewRestore) return;
-        restoreImageViewSnapshot(pendingImageViewRestore);
-        clampTextPosition();
-        scheduleTricolorRender();
-      };
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(applyRestore);
+        subBar.appendChild(btn);
       });
-
-      if (pendingImageViewRestoreTimer) {
-        clearTimeout(pendingImageViewRestoreTimer);
-      }
-      pendingImageViewRestoreTimer = setTimeout(() => {
-        applyRestore();
-        pendingImageViewRestore = null;
-        pendingImageViewRestoreTimer = null;
-      }, 320);
+      subBar.classList.add('show');
     }
 
-    function preserveTransformOnResize() {
-      const r = frameRect();
-      const nextFrameW = r.width;
-      const nextFrameH = r.height;
-      const prevFrameW = state.frameW;
-      const prevFrameH = state.frameH;
-      const prevMinScale = state.minScale;
-      const prevScale = state.scale;
-
-      if (!nextFrameW || !nextFrameH) return;
-      if (!prevFrameW || !prevFrameH || !prevMinScale || !prevScale) {
-        computeCoverTransform();
-        return;
-      }
-
-      const contentCenter = {
-        x: (prevFrameW / 2 - state.tx) / prevScale,
-        y: (prevFrameH / 2 - state.ty) / prevScale,
-      };
-      const zoomRatio = prevScale / prevMinScale;
-
-      if (!updateScaleBounds(nextFrameW, nextFrameH)) return;
-
-      state.scale = clamp(state.minScale * zoomRatio, state.minScale, state.maxScale);
-      state.tx = nextFrameW / 2 - contentCenter.x * state.scale;
-      state.ty = nextFrameH / 2 - contentCenter.y * state.scale;
-
-      clampTranslate();
-      applyTransform();
-    }
-
-    function clampTranslate() {
-      const r = frameRect();
-      const fw = r.width;
-      const fh = r.height;
-
-      const dispW = state.imgW * state.scale;
-      const dispH = state.imgH * state.scale;
-
-      // 保证不露底：tx in [fw-dispW, 0]，ty in [fh-dispH, 0]
-      // 若因数值误差出现 dispW < fw，则把它固定在中心。
-      if (dispW <= fw) {
-        state.tx = (fw - dispW) / 2;
-      } else {
-        state.tx = clamp(state.tx, fw - dispW, 0);
-      }
-
-      if (dispH <= fh) {
-        state.ty = (fh - dispH) / 2;
-      } else {
-        state.ty = clamp(state.ty, fh - dispH, 0);
-      }
-    }
-
-    function resetGestureSnapshots() {
-      state.panStart = null;
-      state.pinchStart = null;
-    }
-
-    function startPan(onlyPointerId) {
-      const p = pointers.get(onlyPointerId);
-      if (!p) return;
-      state.panStart = {
-        pointerId: onlyPointerId,
-        x0: p.x,
-        y0: p.y,
-        tx0: state.tx,
-        ty0: state.ty,
-      };
-      state.pinchStart = null;
-    }
-
-    function startPinch() {
-      const ids = [...pointers.keys()];
-      if (ids.length < 2) return;
-      const p1 = pointers.get(ids[0]);
-      const p2 = pointers.get(ids[1]);
-      if (!p1 || !p2) return;
-
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const dist = Math.hypot(dx, dy) || 1;
-      const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-
-      // 固定内容坐标点：content = (mid - translate) / scale
-      const content = {
-        x: (mid.x - state.tx) / state.scale,
-        y: (mid.y - state.ty) / state.scale,
-      };
-
-      state.pinchStart = {
-        dist0: dist,
-        scale0: state.scale,
-        content0: content,
-      };
-      state.panStart = null;
-    }
-
-    function updateFromPointers() {
-      const n = pointers.size;
-      if (!state.hasImage) return;
-      if (n === 1) {
-        const [id] = pointers.keys();
-        if (!state.panStart || state.panStart.pointerId !== id) startPan(id);
-        const p = pointers.get(id);
-        if (!p || !state.panStart) return;
-
-        state.tx = state.panStart.tx0 + (p.x - state.panStart.x0);
-        state.ty = state.panStart.ty0 + (p.y - state.panStart.y0);
-        clampTranslate();
-        applyTransform();
-        return;
-      }
-
-      if (n >= 2) {
-        if (!state.pinchStart) startPinch();
-        if (!state.pinchStart) return;
-
-        const ids = [...pointers.keys()];
-        const p1 = pointers.get(ids[0]);
-        const p2 = pointers.get(ids[1]);
-        if (!p1 || !p2) return;
-
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-        const dist = Math.hypot(dx, dy) || 1;
-        const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-
-        let nextScale = state.pinchStart.scale0 * (dist / state.pinchStart.dist0);
-        nextScale = clamp(nextScale, state.minScale, state.maxScale);
-
-        // newTranslate = mid - content0 * nextScale
-        state.scale = nextScale;
-        state.tx = mid.x - state.pinchStart.content0.x * nextScale;
-        state.ty = mid.y - state.pinchStart.content0.y * nextScale;
-
-        clampTranslate();
-        applyTransform();
-      }
-    }
-
-    function setImageFromFile(file) {
-      if (!file) return;
-      if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
-
-      const url = URL.createObjectURL(file);
-      state.objectUrl = url;
-      img.src = url;
-      placeholder.style.display = 'none';
-      btnReset.disabled = false;
-
-      img.onload = () => {
-        state.hasImage = true;
-        state.imgW = img.naturalWidth;
-        state.imgH = img.naturalHeight;
-        resetGestureSnapshots();
-        computeCoverTransform();
-        applyTransform();
-        commitCurrentImageView();
-        // 自动转换为三色并显示（等待渲染完成）
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            autoConvertTricolor();
-          });
-        });
-      };
-    }
-
-    /**
-     * 捕获当前 frame 内容 (含图片+文字)
-     * @param {number} scale - 输出缩放倍数，0 表示使用原图尺寸
-     */
-    function captureFrame(scale = 1) {
-      const r = frameRect();
-      const displayW = r.width;
-      const displayH = r.height;
-
-      // 计算输出尺寸
-      let outW, outH, renderScale;
-      if (scale === 0 && state.hasImage) {
-        const visibleInImgW = displayW / state.scale;
-        const visibleInImgH = displayH / state.scale;
-        outW = Math.round(visibleInImgW);
-        outH = Math.round(visibleInImgH);
-        renderScale = outW / displayW;
-      } else {
-        outW = Math.round(displayW * scale);
-        outH = Math.round(displayH * scale);
-        renderScale = scale;
-      }
-
-      const captureCanvas = document.createElement('canvas');
-      captureCanvas.width = outW;
-      captureCanvas.height = outH;
-      const ctx = captureCanvas.getContext('2d');
-
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, outW, outH);
-
-      if (state.hasImage && img.complete) {
-        ctx.save();
-        ctx.scale(renderScale, renderScale);
-        ctx.translate(state.tx, state.ty);
-        ctx.scale(state.scale, state.scale);
-        ctx.drawImage(img, 0, 0);
-        ctx.restore();
-      }
-
-      if (textLayer.style.display !== 'none' && textLayer.textContent) {
-        ctx.save();
-        ctx.scale(renderScale, renderScale);
-        ctx.translate(textState.x || 0, textState.y || 0);
-        ctx.font = `${fontState.size}px ${currentFontFamily}`;
-        ctx.fillStyle = colorState.color;
-        const lines = textLayer.textContent.split('\n');
-        const lineHeight = fontState.size * 1.25;
-        
-        if (textDirectionState.vertical) {
-          // 竖排文字：每个字符单独绘制
-          lines.forEach((line, lineIdx) => {
-            const chars = [...line];
-            chars.forEach((char, charIdx) => {
-              const x = -lineIdx * lineHeight;
-              const y = fontState.size + charIdx * fontState.size * 1.1;
-              ctx.fillText(char, x, y);
-            });
-          });
+    // Tab 点击
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const clicked = tab.dataset.tab;
+        if (activeTab === clicked) {
+          // 再次点击取消选中
+          activeTab = null;
+          tabs.forEach(t => t.classList.remove('active'));
         } else {
-          // 横排文字
-          lines.forEach((line, i) => {
-            ctx.fillText(line, 0, fontState.size + i * lineHeight);
-          });
+          activeTab = clicked;
+          tabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
         }
-        ctx.restore();
-      }
-
-      return captureCanvas;
-    }
-
-    /**
-     * 自动转换三色效果并显示到 frame 上
-     */
-    function convertToTricolorCanvas(sourceCanvas) {
-      const converter = new TriColorConverter({
-        bwThreshold: parseInt(bwThresholdSlider.value),
-        gamma: parseInt(gammaSlider.value) / 100,
-        autoLevelsPercent: parseInt(autoLevelsSlider.value) / 10,
-        autoLevels: autoLevelsCheckbox.checked,
-        satThreshold: parseInt(satThresholdSlider.value) / 100,
-        valThreshold: parseInt(valThresholdSlider.value) / 100,
-        redDelta: parseInt(redDeltaSlider.value),
-        hueWidth: parseInt(hueWidthSlider.value) / 100,
-        redDither: redDitherCheckbox.checked,
-        redThreshold: parseInt(redThresholdSlider.value),
-        redBoost: parseInt(redBoostSlider.value) / 10,
-        serpentine: true,
+        activeTypeId = null;
+        renderSubBar();
+        applyFilter();
       });
-
-      return converter.convert(sourceCanvas);
-    }
-
-    function scheduleTricolorRender() {
-      if (tricolorRenderPending) return;
-      tricolorRenderPending = true;
-      requestAnimationFrame(() => {
-        tricolorRenderPending = false;
-        autoConvertTricolor();
-      });
-    }
-
-    function autoConvertTricolor() {
-      if (!state.hasImage) return;
-
-      const tricolorOverlay = document.getElementById('tricolorOverlay');
-      const scale = parseInt(outputScaleSelect.value) || 2;
-      const sourceCanvas = captureFrame(scale);
-
-      if (isTricolorMode) {
-        // 三色图模式：不做抖动处理，将原图（含文字）渲染到 overlay 展示
-        lastTricolorResult = sourceCanvas;
-        tricolorOverlay.width = sourceCanvas.width;
-        tricolorOverlay.height = sourceCanvas.height;
-        const ctxTc = tricolorOverlay.getContext('2d');
-        ctxTc.drawImage(sourceCanvas, 0, 0);
-        tricolorOverlay.style.display = 'block';
-        img.style.visibility = 'hidden';
-        tricolorInfo.textContent = `三色图模式（无抖动）: ${sourceCanvas.width} × ${sourceCanvas.height} 像素`;
-        btnTricolorDownload.disabled = false;
-        return;
-      }
-
-      tricolorInfo.textContent = `三色效果: ${sourceCanvas.width} × ${sourceCanvas.height} 像素`;
-
-      lastTricolorResult = convertToTricolorCanvas(sourceCanvas);
-
-      // 显示到 overlay canvas
-      tricolorOverlay.width = lastTricolorResult.width;
-      tricolorOverlay.height = lastTricolorResult.height;
-      const ctx = tricolorOverlay.getContext('2d');
-      ctx.drawImage(lastTricolorResult, 0, 0);
-      tricolorOverlay.style.display = 'block';
-
-      // 隐藏原图
-      img.style.visibility = 'hidden';
-
-      btnTricolorDownload.disabled = false;
-    }
-
-    function updateCaption() {
-      // 输入时不显示，等点击按钮加载完成后再显示
-      // 此函数现在仅用于字体加载完成后调用
-    }
-
-    // 实际显示文字的函数
-    function showCaption() {
-      const v = (captionInput.value || '').trimEnd();
-      if (!v) {
-        textLayer.style.display = 'none';
-        textLayer.textContent = '';
-        return;
-      }
-      textLayer.style.display = 'block';
-      textLayer.textContent = v;
-      textLayer.classList.add('preview-hidden');
-      // 应用当前字体
-      textLayer.style.fontFamily = currentFontFamily;
-      textLayer.style.fontSize = `${fontState.size}px`;
-      textLayer.style.color = colorState.color;
-      applyTextShadowForColor(colorState.color);
-
-      // 初始化文字位置（底部居中偏左）
-      if (textState.x === null || textState.y === null) {
-        const r = frameRect();
-        textState.x = textState.margin;
-        textState.y = Math.max(textState.margin, r.height - textLayer.offsetHeight - textState.margin);
-      }
-
-      clampTextPosition();
-      scheduleTricolorRender();
-    }
-
-    // 从远程加载字体子集
-    async function loadFontSubset() {
-      const text = captionInput.value.trim();
-      if (!text) {
-        fontStatus.textContent = '请先输入文字';
-        fontStatus.style.color = '#f85149';
-        return;
-      }
-
-      const imageViewSnapshot = committedImageView || captureCurrentImageView();
-
-      // 关键：在 blur 之前就设好快照，这样键盘收起触发的 resize
-      // 能立即从快照恢复，而不是走 preserveTransformOnResize 丢失状态
-      pendingImageViewRestore = imageViewSnapshot;
-
-      captionInput.blur();
-
-      const fontName = fontSelect.value;
-      
-      // 默认字体直接显示，不需要加载
-      if (fontName === 'default') {
-        currentFontFamily = 'sans-serif';
-        textLayer.style.fontFamily = currentFontFamily;
-        
-        // 显示文字并锁定图片
-        showCaption();
-        textLocked = true;
-
-        // 隐藏输入框、字体选择、添加祝福语按钮
-        captionInput.style.display = 'none';
-        fontSelect.style.display = 'none';
-        btnLoadFont.style.display = 'none';
-
-        // 显示放大/缩小/横竖/颜色按钮、录音按钮和发送按钮
-        document.querySelector('.size-controls').style.display = '';
-        document.querySelector('.color-controls').style.display = '';
-        document.querySelector('.record-section').style.display = '';
-        document.querySelector('.send-section').style.display = '';
-        queueImageViewRestore(imageViewSnapshot);
-        return;
-      }
-
-      btnLoadFont.disabled = true;
-      btnLoadFont.classList.add('btn-loading');
-      loadingOverlay.classList.add('show');
-
-      try {
-        // 请求字体子集
-        const url = `${FONT_API}?font=${encodeURIComponent(fontName)}&text=${encodeURIComponent(text)}`;
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-          throw new Error('字体加载失败: ' + response.status);
-        }
-
-        // 获取字体数据
-        const fontData = await response.arrayBuffer();
-        const fontType = response.headers.get('Content-Type');
-        const contentLength = response.headers.get('Content-Length');
-        const subsetStatus = response.headers.get('X-Subset-Status');
-        const subsetError = response.headers.get('X-Subset-Error');
-        let format = 'woff2';
-        if (fontType?.includes('ttf')) format = 'truetype';
-        else if (fontType?.includes('woff2')) format = 'woff2';
-        else if (fontType?.includes('woff')) format = 'woff';
-
-        // 定义字体名称
-        const customFontFamily = `CustomFont_${fontName}`;
-        
-        // 动态注册字体
-        const fontFace = new FontFace(customFontFamily, fontData, {
-          style: 'normal',
-          weight: 'normal'
-        });
-
-        await fontFace.load();
-        document.fonts.add(fontFace);
-
-        // 应用字体
-        currentFontFamily = customFontFamily;
-        textLayer.style.fontFamily = currentFontFamily;
-
-        // 显示文字并锁定图片
-        showCaption();
-        textLocked = true;
-
-        // 隐藏输入框、字体选择、添加祝福语按钮
-        captionInput.style.display = 'none';
-        fontSelect.style.display = 'none';
-        btnLoadFont.style.display = 'none';
-
-        // 显示放大/缩小/横竖/颜色按钮、录音按钮和发送按钮
-        document.querySelector('.size-controls').style.display = '';
-        document.querySelector('.color-controls').style.display = '';
-        document.querySelector('.record-section').style.display = '';
-        document.querySelector('.send-section').style.display = '';
-        queueImageViewRestore(imageViewSnapshot);
-      } catch (error) {
-        console.error('字体加载失败:', error);
-        fontStatus.textContent = '✖ 字体加载失败: ' + error.message;
-        fontStatus.style.color = '#f85149';
-      } finally {
-        btnLoadFont.disabled = false;
-        btnLoadFont.classList.remove('btn-loading');
-        loadingOverlay.classList.remove('show');
-      }
-    }
-
-    // 初始选择器事件
-    btnPickInitial.addEventListener('click', () => fileInitial.click());
-    fileInitial.addEventListener('change', () => {
-      const file = fileInitial.files && fileInitial.files[0];
-      if (file) {
-        isTricolorMode = chkTricolorInitial.checked;
-        initialPicker.classList.add('hidden');
-        mainContent.classList.add('show');
-        setImageFromFile(file);
-      }
     });
 
-    // 动态加载模板列表
+    // 初始化：同时加载模板列表和分类列表
     (async () => {
-      const grid = document.getElementById('tileGrid');
-      const search = window.location.search || '';
       try {
-        const res = await fetch('dl/template.php?action=list');
-        const list = await res.json();
-        list.forEach(tpl => {
-          const a = document.createElement('a');
-          a.className = 'tile';
-          a.style.textDecoration = 'none';
-          a.style.color = 'inherit';
-          const params = new URLSearchParams({
-            template_id: tpl.id,
-            bg: tpl.bg,
-            top: tpl.top
-          });
-          const applyPage = tpl.kind === 'photo' ? 'dl/template/pic_apply.html' : 'dl/template/apply.html';
-          a.href = applyPage + '?' + params.toString() + (search ? '&' + search.slice(1) : '');
-          const img = document.createElement('img');
-          img.src = tpl.thumb ? ('dl/' + tpl.thumb) : '';
-          img.alt = tpl.name;
-          img.onerror = function() { this.style.display = 'none'; };
-          const label = document.createElement('div');
-          label.className = 'tile-label';
-          label.textContent = tpl.name;
-          a.appendChild(img);
-          a.appendChild(label);
-          grid.appendChild(a);
-        });
+        const [resTemplates, resTypes] = await Promise.all([
+          fetch('dl/template.php?action=list'),
+          fetch('dl/template.php?action=list_types')
+        ]);
+        allTemplates = await resTemplates.json();
+        const typesData = await resTypes.json();
+        allTypes = (typesData.types || []).map(t => ({ id: Number(t.id), name: t.name }));
+        // 初始：显示全部
+        applyFilter();
       } catch (e) {
-        console.warn('加载模板列表失败:', e);
+        console.warn('加载模板数据失败:', e);
       }
     })();
-
-    btnPick.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', () => {
-      const file = fileInput.files && fileInput.files[0];
-      if (file) {
-        isTricolorMode = chkTricolorToolbar.checked;
-        setImageFromFile(file);
-      }
-    });
-
-    btnReset.addEventListener('click', () => {
-      if (!state.hasImage) return;
-      resetGestureSnapshots();
-      computeCoverTransform();
-      commitCurrentImageView();
-    });
-
-    captionInput.addEventListener('input', updateCaption);
-    captionInput.addEventListener('change', updateCaption);
-    btnLoadFont.addEventListener('click', loadFontSubset);
-
-    function applyFontSize(nextSize) {
-      fontState.size = Math.max(fontState.min, Math.min(fontState.max, nextSize));
-      if (state.hasImage && (captionInput.value || '').trimEnd()) {
-        textLayer.style.fontSize = `${fontState.size}px`;
-        clampTextPosition();
-        scheduleTricolorRender();
-      }
-    }
-
-    btnFontSizeDown.addEventListener('click', () => {
-      applyFontSize(fontState.size - fontState.step);
-    });
-    btnFontSizeUp.addEventListener('click', () => {
-      applyFontSize(fontState.size + fontState.step);
-    });
-
-    function applyTextColor(color) {
-      colorState.color = color;
-      textLayer.style.color = colorState.color;
-      applyTextShadowForColor(colorState.color);
-      scheduleTricolorRender();
-    }
-
-    btnColorBlack.addEventListener('click', () => applyTextColor('#111111'));
-    btnColorRed.addEventListener('click', () => applyTextColor('#d1242f'));
-    btnColorWhite.addEventListener('click', () => applyTextColor('#ffffff'));
-
-    // 文字方向切换
-    const btnTextDirection = document.getElementById('btnTextDirection');
-    const textDirectionState = { vertical: false };
-
-    function toggleTextDirection() {
-      textDirectionState.vertical = !textDirectionState.vertical;
-      if (textDirectionState.vertical) {
-        textLayer.style.writingMode = 'vertical-rl';
-        textLayer.style.textOrientation = 'upright';
-        btnTextDirection.textContent = '横';
-      } else {
-        textLayer.style.writingMode = 'horizontal-tb';
-        textLayer.style.textOrientation = 'mixed';
-        btnTextDirection.textContent = '竖';
-      }
-      clampTextPosition();
-      scheduleTricolorRender();
-    }
-
-    btnTextDirection.addEventListener('click', toggleTextDirection);
-
-    frame.addEventListener('pointerdown', (ev) => {
-      if (!state.hasImage) return;
-      // 文字已加载后，禁止移动/缩放图片
-      if (textLocked) return;
-      frame.setPointerCapture(ev.pointerId);
-      const p = toLocalPoint(ev);
-      pointers.set(ev.pointerId, p);
-      if (pointers.size === 1) {
-        startPan(ev.pointerId);
-        // 手势开始时隐藏三色 overlay，显示原图
-        const tricolorOverlay = document.getElementById('tricolorOverlay');
-        if (tricolorOverlay) tricolorOverlay.style.display = 'none';
-        img.style.visibility = 'visible';
-      } else if (pointers.size === 2) {
-        startPinch();
-      }
-      ev.preventDefault();
-    });
-
-    textLayer.addEventListener('pointerdown', (ev) => {
-      if (textLayer.style.display === 'none') return;
-      textLayer.setPointerCapture(ev.pointerId);
-      const p = toLocalPoint(ev);
-      textState.pointerId = ev.pointerId;
-      textState.dragStart = {
-        x0: p.x,
-        y0: p.y,
-        tx0: textState.x ?? 0,
-        ty0: textState.y ?? 0,
-      };
-      ev.preventDefault();
-      ev.stopPropagation();
-    });
-
-    textLayer.addEventListener('pointermove', (ev) => {
-      if (textState.pointerId !== ev.pointerId || !textState.dragStart) return;
-      const p = toLocalPoint(ev);
-      textState.x = textState.dragStart.tx0 + (p.x - textState.dragStart.x0);
-      textState.y = textState.dragStart.ty0 + (p.y - textState.dragStart.y0);
-      clampTextPosition();
-      scheduleTricolorRender();
-      ev.preventDefault();
-      ev.stopPropagation();
-    });
-
-    function endTextDrag(ev) {
-      if (textState.pointerId !== ev.pointerId) return;
-      textState.pointerId = null;
-      textState.dragStart = null;
-      scheduleTricolorRender();
-      ev.preventDefault();
-      ev.stopPropagation();
-    }
-
-    textLayer.addEventListener('pointerup', endTextDrag);
-    textLayer.addEventListener('pointercancel', endTextDrag);
-
-    frame.addEventListener('pointermove', (ev) => {
-      if (!state.hasImage) return;
-      if (!pointers.has(ev.pointerId)) return;
-      pointers.set(ev.pointerId, toLocalPoint(ev));
-      updateFromPointers();
-      ev.preventDefault();
-    });
-
-    function endPointer(ev) {
-      if (!pointers.has(ev.pointerId)) return;
-      pointers.delete(ev.pointerId);
-
-      // 2->1 时，重建 pan 基线
-      if (pointers.size === 1) {
-        const [id] = pointers.keys();
-        startPan(id);
-      } else if (pointers.size === 0) {
-        resetGestureSnapshots();
-        commitCurrentImageView();
-        // 手势结束后重新生成三色效果
-        if (state.hasImage) {
-          setTimeout(autoConvertTricolor, 50);
-        }
-      } else {
-        // 仍是多指，重建 pinch 基线
-        startPinch();
-      }
-
-      ev.preventDefault();
-    }
-
-    frame.addEventListener('pointerup', endPointer);
-    frame.addEventListener('pointercancel', endPointer);
-    frame.addEventListener('pointerleave', (ev) => {
-      // leave 可能不会触发 up，这里不强行结束，交给 up/cancel
-      ev.preventDefault();
-    });
-
-    // 窗口尺寸变化时保持当前视图，避免输入法弹出/收起时重置图片位置
-    window.addEventListener('resize', () => {
-      if (!state.hasImage) return;
-      resetGestureSnapshots();
-
-      // 优先级：
-      // 1. 有明确的待恢复快照（点击"添加祝福语"后设置）
-      // 2. 输入框获焦（键盘弹出/收起期间）且有提交过的视图
-      // 3. 其他情况走普通自适应
-      const snapshotToUse = pendingImageViewRestore
-        || (document.activeElement === captionInput && committedImageView)
-        || null;
-
-      if (snapshotToUse) {
-        restoreImageViewSnapshot(snapshotToUse);
-      } else {
-        preserveTransformOnResize();
-      }
-      clampTextPosition();
-    });
-
-    applyTransform();
-    updateCaption();
-
-    // ========== 三色墨水屏效果 ==========
-    const btnTricolorDownload = document.getElementById('btnTricolorDownload');
-
-    /**
-     * 下载三色图片
-     */
-    function downloadTricolor() {
-      if (!lastTricolorResult) return;
-
-      const link = document.createElement('a');
-      link.download = 'tricolor_' + Date.now() + '.png';
-      link.href = lastTricolorResult.toDataURL('image/png');
-      link.click();
-    }
-
-    btnTricolorDownload.addEventListener('click', downloadTricolor);
-
-    // ========== 录音功能 ==========
-    const btnRecord = document.getElementById('btnRecord');
-    const recordProgress = document.getElementById('recordProgress');
-    const recordProgressBar = document.getElementById('recordProgressBar');
-    const recordTimer = document.getElementById('recordTimer');
-    const recordedAudio = document.getElementById('recordedAudio');
-
-    let mediaRecorder = null;
-    let recordedChunks = [];
-    let lastRecordedBlob = null;
-    let recordingTimer = null;
-    let recordingStartTime = null;
-    const MAX_RECORD_TIME = 10000; // 10秒
-
-    async function startRecording() {
-      try {
-        console.log('[录音] 请求麦克风权限...');
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        console.log('[录音] 麦克风权限获取成功');
-        mediaRecorder = new MediaRecorder(stream);
-        console.log('[录音] MediaRecorder 创建成功, mimeType:', mediaRecorder.mimeType);
-        recordedChunks = [];
-
-        mediaRecorder.ondataavailable = (e) => {
-          console.log('[录音] ondataavailable, size:', e.data.size);
-          if (e.data.size > 0) {
-            recordedChunks.push(e.data);
-          }
-        };
-
-        mediaRecorder.onstop = () => {
-          console.log('[录音] onstop, chunks数量:', recordedChunks.length);
-          // 停止所有音轨
-          stream.getTracks().forEach(track => track.stop());
-          
-          // 创建音频并播放
-          if (recordedChunks.length > 0) {
-            const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
-            lastRecordedBlob = blob;
-            console.log('[录音] Blob创建成功, size:', blob.size, 'type:', blob.type);
-            const audioUrl = URL.createObjectURL(blob);
-            console.log('[录音] 音频URL:', audioUrl);
-            recordedAudio.src = audioUrl;
-            recordedAudio.onloadeddata = () => {
-              console.log('[录音] 音频加载完成, 开始播放...');
-              recordedAudio.play().catch(err => console.error('[录音] 播放失败:', err));
-            };
-            recordedAudio.onerror = (err) => {
-              console.error('[录音] 音频加载错误:', err);
-            };
-          } else {
-            console.warn('[录音] 没有录制到数据');
-          }
-        };
-
-        mediaRecorder.onerror = (err) => {
-          console.error('[录音] MediaRecorder错误:', err);
-        };
-
-        console.log('[录音] 开始录制...');
-        mediaRecorder.start(100); // 每100ms收集一次数据
-        console.log('[录音] MediaRecorder状态:', mediaRecorder.state);
-        recordingStartTime = Date.now();
-        btnRecord.classList.add('recording');
-        recordProgress.classList.add('show');
-        
-        // 更新进度条
-        updateRecordProgress();
-        
-        // 10秒后自动停止
-        recordingTimer = setTimeout(() => {
-          stopRecording();
-        }, MAX_RECORD_TIME);
-
-      } catch (error) {
-        console.error('无法访问麦克风:', error);
-        alert('无法访问麦克风，请检查权限设置');
-      }
-    }
-
-    function updateRecordProgress() {
-      if (!recordingStartTime || !mediaRecorder || mediaRecorder.state !== 'recording') return;
-      
-      const elapsed = Date.now() - recordingStartTime;
-      const remaining = Math.max(0, MAX_RECORD_TIME - elapsed);
-      const percent = (remaining / MAX_RECORD_TIME) * 100;
-      
-      recordProgressBar.style.width = percent + '%';
-      recordTimer.textContent = Math.ceil(remaining / 1000);
-      
-      if (remaining > 0) {
-        requestAnimationFrame(updateRecordProgress);
-      }
-    }
-
-    function stopRecording() {
-      console.log('[录音] stopRecording 调用');
-      if (recordingTimer) {
-        clearTimeout(recordingTimer);
-        recordingTimer = null;
-      }
-      
-      if (mediaRecorder && mediaRecorder.state === 'recording') {
-        console.log('[录音] 停止 MediaRecorder, 当前状态:', mediaRecorder.state);
-        mediaRecorder.stop();
-      } else {
-        console.log('[录音] MediaRecorder 状态:', mediaRecorder?.state);
-      }
-      
-      btnRecord.classList.remove('recording');
-      recordProgress.classList.remove('show');
-      recordProgressBar.style.width = '100%';
-      recordTimer.textContent = '10';
-      recordingStartTime = null;
-    }
-
-    // 按住开始录音，松开停止
-    btnRecord.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      startRecording();
-    });
-
-    btnRecord.addEventListener('pointerup', (e) => {
-      e.preventDefault();
-      stopRecording();
-    });
-
-    btnRecord.addEventListener('pointerleave', (e) => {
-      if (mediaRecorder && mediaRecorder.state === 'recording') {
-        stopRecording();
-      }
-    });
-
-    btnRecord.addEventListener('pointercancel', (e) => {
-      if (mediaRecorder && mediaRecorder.state === 'recording') {
-        stopRecording();
-      }
-    });
-
-    // ========== 发送祝福 ==========
-    const btnSendBlessing = document.getElementById('btnSendBlessing');
-    const sendSuccessOverlay = document.getElementById('sendSuccessOverlay');
-
-    function buildImageBlob(scale = 2) {
-      return new Promise((resolve, reject) => {
-        // 先用高分辨率捕获原图+文字
-        const sourceCanvas = captureFrame(scale);
-
-        // 缩放到 270x400，再进行抖动转换（避免抖动后缩放破坏像素点阵）
-        const scaledCanvas = document.createElement('canvas');
-        scaledCanvas.width = 270;
-        scaledCanvas.height = 400;
-        const ctx = scaledCanvas.getContext('2d');
-        ctx.drawImage(sourceCanvas, 0, 0, 270, 400);
-
-        // 三色图模式跳过抖动，直接使用缩放后画布
-        const outputCanvas = isTricolorMode ? scaledCanvas : convertToTricolorCanvas(scaledCanvas);
-
-        outputCanvas.toBlob((blob) => {
-          if (!blob) {
-            reject(new Error('图片生成失败'));
-            return;
-          }
-          resolve(blob);
-        }, 'image/png');
-      });
-    }
-
-    function runServerLogs(htmlText) {
-      if (!htmlText || !htmlText.includes('<script>')) {
-        return;
-      }
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.srcdoc = htmlText;
-      document.body.appendChild(iframe);
-      setTimeout(() => iframe.remove(), 1500);
-    }
-
-    function extractPlainText(htmlText) {
-      if (!htmlText || !htmlText.includes('<')) {
-        return (htmlText || '').trim();
-      }
-      const doc = new DOMParser().parseFromString(htmlText, 'text/html');
-      return (doc.body ? doc.body.textContent : htmlText).trim();
-    }
-
-    async function uploadBlessing() {
-      const query = window.location.search || '';
-      const raw = query.startsWith('?') ? query.slice(1) : query;
-      if (!/^(\d{4})([A-Za-z0-9]{9})([A-Za-z0-9]{8})$/.test(raw)) {
-        alert('URL 参数格式不正确。');
-        return false;
-      }
-
-      const scale = parseInt(outputScaleSelect.value, 10);
-      const imageBlob = await buildImageBlob(Number.isNaN(scale) ? 2 : scale);
-
-      const formData = new FormData();
-      formData.append('image', imageBlob, 'capture.png');
-      if (lastRecordedBlob) {
-        formData.append('audio', lastRecordedBlob, 'record.wav');
-      }
-
-      const response = await fetch(`./dl/up.php${query}`, {
-        method: 'POST',
-        body: formData
-      });
-
-      const text = await response.text();
-      runServerLogs(text);
-
-      if (!response.ok) {
-        throw new Error(extractPlainText(text) || '上传失败');
-      }
-
-      return true;
-    }
-
-    btnSendBlessing.addEventListener('click', async () => {
-      if (!state.hasImage) {
-        alert('请先选择图片。');
-        return;
-      }
-
-      btnSendBlessing.disabled = true;
-      btnSendBlessing.textContent = '发送中...';
-
-      try {
-        await uploadBlessing();
-        mainContent.style.display = 'none';
-        sendSuccessOverlay.classList.add('show');
-      } catch (error) {
-        alert(error.message || '上传失败');
-      } finally {
-        btnSendBlessing.disabled = false;
-        btnSendBlessing.textContent = '发送祝福';
-      }
-    });
-
   </script>
 </body>
 </html>
