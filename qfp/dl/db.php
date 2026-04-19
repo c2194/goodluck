@@ -28,8 +28,8 @@ function getDb(): PDO {
             factory_status INTEGER NOT NULL DEFAULT 0,
             getlist_count INTEGER NOT NULL DEFAULT 0,
             getlist_at    INTEGER NOT NULL DEFAULT 0,
-            sleep         INTEGER NOT NULL DEFAULT 15,
-            sleep_low     INTEGER NOT NULL DEFAULT 30,
+            sleep         INTEGER NOT NULL DEFAULT 300,
+            sleep_low     INTEGER NOT NULL DEFAULT 1800,
             attime        INTEGER NOT NULL DEFAULT 0,
             time_start    INTEGER NOT NULL DEFAULT 0,
             time_end      INTEGER NOT NULL DEFAULT 1439,
@@ -123,6 +123,10 @@ function getDb(): PDO {
     if (!in_array('cell',       $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN cell       TEXT    NOT NULL DEFAULT \'\'');
     if (!in_array('cell_at',    $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN cell_at    INTEGER NOT NULL DEFAULT 0');
     if (!in_array('manual_location', $colNames)) $pdo->exec("ALTER TABLE devices ADD COLUMN manual_location TEXT NOT NULL DEFAULT ''");
+    if (!in_array('imei',   $colNames)) $pdo->exec("ALTER TABLE devices ADD COLUMN imei   TEXT    NOT NULL DEFAULT ''");
+    if (!in_array('iccid',  $colNames)) $pdo->exec("ALTER TABLE devices ADD COLUMN iccid  TEXT    NOT NULL DEFAULT ''");
+    if (!in_array('imsi',   $colNames)) $pdo->exec("ALTER TABLE devices ADD COLUMN imsi   TEXT    NOT NULL DEFAULT ''");
+    if (!in_array('sim_at', $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN sim_at INTEGER NOT NULL DEFAULT 0');
     // 兼容旧状态值：将文本状态迁移为整数编号
     $pdo->exec("UPDATE devices SET factory_status = CASE factory_status
         WHEN 'new_registered' THEN 0

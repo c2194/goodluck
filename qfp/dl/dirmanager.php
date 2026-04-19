@@ -21,7 +21,7 @@ if (isset($_GET['dbapi'])) {
 }
 
 // DB 操作 (POST)
-if (isset($_POST['action']) && in_array($_POST['action'], ['db_entry', 'db_setup'], true)) {
+if (isset($_POST['action']) && in_array($_POST['action'], ['db_entry', 'db_setup', 'clear_device_files'], true)) {
     header('Content-Type: application/json; charset=utf-8');
     require_once __DIR__ . '/db.php';
     $pdo = getDb();
@@ -59,6 +59,44 @@ if (isset($_POST['action']) && in_array($_POST['action'], ['db_entry', 'db_setup
         }
         $pdo->prepare('UPDATE devices SET sleep=?, sleep_low=?, attime=?, time_start=?, time_end=?, volume=?, manual_location=? WHERE id=?')->execute([$sleepNormal, $sleepLow, $attime, $timeStart, $timeEnd, $volume, $manualLocation, $deviceId]);
         echo json_encode(['success' => true]);
+        exit;
+    }
+    if ($_POST['action'] === 'clear_device_files') {
+        $deviceId = intval($_POST['device_id'] ?? 0);
+        if ($deviceId <= 0) {
+            echo json_encode(['success' => false, 'error' => '参数无效']);
+            exit;
+        }
+        $stmt = $pdo->prepare('SELECT month_year, mac_b62 FROM devices WHERE id = ?');
+        $stmt->execute([$deviceId]);
+        $dev = $stmt->fetch();
+        if (!$dev) {
+            echo json_encode(['success' => false, 'error' => '设备不存在']);
+            exit;
+        }
+        // 严格路径校验，防止遍历
+        $monthYear = preg_replace('/[^0-9]/', '', $dev['month_year']);
+        $macB62    = preg_replace('/[^A-Za-z0-9]/', '', $dev['mac_b62']);
+        $devDir    = realpath(__DIR__ . DIRECTORY_SEPARATOR . $monthYear . DIRECTORY_SEPARATOR . $macB62);
+        $baseDir   = realpath(__DIR__);
+        if ($devDir === false || strpos($devDir, $baseDir) !== 0) {
+            echo json_encode(['success' => false, 'error' => '目录无效']);
+            exit;
+        }
+        $imageExts = ['jpg','jpeg','png','gif','webp','bmp'];
+        $audioExts = ['mp3'];
+        $allowed   = array_merge($imageExts, $audioExts);
+        $deleted   = 0;
+        foreach (scandir($devDir) as $fname) {
+            if ($fname === '.' || $fname === '..' || strtolower($fname) === 'code.png') continue;
+            $ext = strtolower(pathinfo($fname, PATHINFO_EXTENSION));
+            if (!in_array($ext, $allowed)) continue;
+            $fp = $devDir . DIRECTORY_SEPARATOR . $fname;
+            if (is_file($fp) && unlink($fp)) $deleted++;
+        }
+        // 重置所有 entries state 为 1（有位但无文件）
+        $pdo->prepare('UPDATE entries SET state = 1 WHERE device_id = ? AND state > 1')->execute([$deviceId]);
+        echo json_encode(['success' => true, 'deleted' => $deleted]);
         exit;
     }
 }
@@ -416,6 +454,25 @@ if (isset($_POST['action']) && $_POST['action'] === 'setup' && isset($_POST['pat
             background: #0056b3;
         }
         .setup-save-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .setup-clear-btn {
+            margin-top: 4px;
+            margin-left: 8px;
+            background: #dc3545;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 18px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .setup-clear-btn:hover {
+            background: #a71d2a;
+        }
+        .setup-clear-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
         }
@@ -1108,6 +1165,16 @@ function renderDbEntries(panel, entries, deviceId) {
                 html += '<div class="setup-row"><span class="setup-label">位置信息</span><span class="setup-value" id="cell-location-' + deviceId + '">查询中...</span></div>';
                 pendingCellLoads.push({ cell: cell, targetId: 'cell-location-' + deviceId });
             }
+            var imei  = device.imei  || '';
+            var iccid = device.iccid || '';
+            var imsi  = device.imsi  || '';
+            var simAt = device.sim_at ? new Date(device.sim_at * 1000).toLocaleString('zh-CN') : '';
+            if (imei || iccid || imsi) {
+                if (imei)  html += '<div class="setup-row"><span class="setup-label">IMEI</span><span class="setup-value">' + imei + '</span></div>';
+                if (iccid) html += '<div class="setup-row"><span class="setup-label">ICCID</span><span class="setup-value">' + iccid + '</span></div>';
+                if (imsi)  html += '<div class="setup-row"><span class="setup-label">IMSI</span><span class="setup-value">' + imsi + '</span></div>';
+                if (simAt) html += '<div class="setup-row"><span class="setup-label">SIM 上报时间</span><span class="setup-value">' + simAt + '</span></div>';
+            }
             html += '<div class="setup-row"><label class="setup-label" for="db-manual-loc-' + deviceId + '">手动位置说明</label><input class="setup-input" id="db-manual-loc-' + deviceId + '" type="text" maxlength="20" value="' + (device.manual_location || '') + '"></div>';
             html += '<div class="setup-row"><label class="setup-label" for="db-sleep-normal-' + deviceId + '">祝福切换间隔时间</label><input class="setup-input" id="db-sleep-normal-' + deviceId + '" type="number" value="' + sleepNormal + '" min="1"><span style="font-size:12px;color:#999;margin-left:4px">正常电量(秒)</span></div>';
             html += '<div class="setup-row"><span class="setup-label"></span><input class="setup-input" id="db-sleep-low-' + deviceId + '" type="number" value="' + sleepLow + '" min="1"><span style="font-size:12px;color:#999;margin-left:4px">低电量(秒)</span></div>';
@@ -1120,6 +1187,7 @@ function renderDbEntries(panel, entries, deviceId) {
             var volumeVal = (device.volume !== null && device.volume !== undefined) ? device.volume : 5;
             html += '<div class="setup-row"><label class="setup-label" for="db-volume-' + deviceId + '">音量</label><input class="setup-input" id="db-volume-' + deviceId + '" type="number" value="' + volumeVal + '" min="0" max="10"><span style="font-size:12px;color:#999;margin-left:4px">0-10</span></div>';
             html += '<button class="setup-save-btn" onclick="saveDbSetup(this,' + deviceId + ')">保存</button>';
+            html += '<button class="setup-clear-btn" onclick="clearDeviceFiles(this,' + deviceId + ')">清空图片位</button>';
             html += '</div>';
         }
     }
@@ -1246,6 +1314,38 @@ function saveDbSetup(btn, deviceId) {
         .catch(function(e) {
             alert('请求失败: ' + e.message);
             btn.textContent = '保存';
+            btn.disabled = false;
+        });
+}
+
+function clearDeviceFiles(btn, deviceId) {
+    if (!confirm('确认清空该设备目录下的所有 mp3 和图片文件？\n（code.png 不会被删除）')) return;
+    var fd = new FormData();
+    fd.append('action', 'clear_device_files');
+    fd.append('device_id', deviceId);
+    btn.disabled = true;
+    btn.textContent = '清空中…';
+    fetch(window.location.pathname, { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                // 清除本地条目缓存，下次进入时重新从服务器拉取
+                if (typeof dbEntriesCache !== 'undefined') delete dbEntriesCache[deviceId];
+                btn.textContent = '已清空(' + (data.deleted || 0) + '个)';
+                setTimeout(function() { btn.textContent = '清空图片位'; btn.disabled = false; }, 2000);
+                // 如果当前正在查看该设备的条目列表，立即刷新
+                if (typeof dbState !== 'undefined' && dbState.level === 'entries' && dbState.deviceId == deviceId) {
+                    renderDbEntriesView();
+                }
+            } else {
+                alert('清空失败: ' + (data.error || '未知错误'));
+                btn.textContent = '清空图片位';
+                btn.disabled = false;
+            }
+        })
+        .catch(function(e) {
+            alert('请求失败: ' + e.message);
+            btn.textContent = '清空图片位';
             btn.disabled = false;
         });
 }

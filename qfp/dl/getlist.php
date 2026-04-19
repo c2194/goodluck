@@ -55,6 +55,28 @@ if (isset($extraParams['cell']) && $extraParams['cell'] !== '') {
 	}
 }
 
+// 记录 SIM 卡信息 (imei/iccid/imsi)
+{
+	$imei  = isset($extraParams['imei'])  ? trim($extraParams['imei'])  : '';
+	$iccid = isset($extraParams['iccid']) ? trim($extraParams['iccid']) : '';
+	$imsi  = isset($extraParams['imsi'])  ? trim($extraParams['imsi'])  : '';
+	// 简单格式校验：纯数字，长度在合理范围内
+	$imeiOk  = $imei  !== '' && preg_match('/^\d{14,16}$/', $imei);
+	$iccidOk = $iccid !== '' && preg_match('/^\d{18,22}$/', $iccid);
+	$imsiOk  = $imsi  !== '' && preg_match('/^\d{14,16}$/', $imsi);
+	if ($imeiOk || $iccidOk || $imsiOk) {
+		$sets = [];
+		$vals = [];
+		if ($imeiOk)  { $sets[] = 'imei=?';  $vals[] = $imei; }
+		if ($iccidOk) { $sets[] = 'iccid=?'; $vals[] = $iccid; }
+		if ($imsiOk)  { $sets[] = 'imsi=?';  $vals[] = $imsi; }
+		$sets[] = 'sim_at=?'; $vals[] = time();
+		$vals[] = $device['id'];
+		$pdo->prepare('UPDATE devices SET ' . implode(', ', $sets) . ' WHERE id=?')
+		    ->execute($vals);
+	}
+}
+
 $stmtEnt = $pdo->prepare('SELECT key, state FROM entries WHERE device_id = ?');
 $stmtEnt->execute([$device['id']]);
 

@@ -110,7 +110,7 @@ if (isset($_GET['reg'])) {
   $pdo = getDb();
   try {
     $pdo->beginTransaction();
-    $pdo->prepare('INSERT OR IGNORE INTO devices (month_year, mac_b62, mac_hex, registered_at) VALUES (?, ?, ?, ?)')
+    $pdo->prepare('INSERT OR IGNORE INTO devices (month_year, mac_b62, mac_hex, registered_at, sleep, sleep_low) VALUES (?, ?, ?, ?, 300, 1800)')
         ->execute([$monthYear, $base62Mac, $hexMac, time()]);
     $stmtId = $pdo->prepare('SELECT id FROM devices WHERE month_year = ? AND mac_b62 = ?');
     $stmtId->execute([$monthYear, $base62Mac]);
@@ -130,6 +130,14 @@ if (isset($_GET['reg'])) {
     echo json_encode(['cmd' => 'reg', 're' => 'error', 'msg' => '数据库写入失败: ' . $e->getMessage(), 'monthDir' => $monthDir, 'macDir' => $macDir], JSON_UNESCAPED_UNICODE);
     exit;
   }
+
+  // 生成设备二维码图片
+  $codePngPath = $macDirPath . DIRECTORY_SEPARATOR . 'code.png';
+  $genScript   = __DIR__ . DIRECTORY_SEPARATOR . 'gen_code_png.py';
+  $cmdQr = escapeshellcmd('python3') . ' ' . escapeshellarg($genScript)
+          . ' ' . escapeshellarg($base62Mac)
+          . ' ' . escapeshellarg($codePngPath);
+  exec($cmdQr . ' 2>&1');
 
   echo json_encode([
     'cmd' => 'reg',
@@ -175,7 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo = getDb();
         try {
           $pdo->beginTransaction();
-          $pdo->prepare('INSERT OR IGNORE INTO devices (month_year, mac_b62, mac_hex, registered_at) VALUES (?, ?, ?, ?)')
+          $pdo->prepare('INSERT OR IGNORE INTO devices (month_year, mac_b62, mac_hex, registered_at, sleep, sleep_low) VALUES (?, ?, ?, ?, 300, 1800)')
               ->execute([$monthYear, $base62Mac, $hexMac, time()]);
           $stmtId = $pdo->prepare('SELECT id FROM devices WHERE month_year = ? AND mac_b62 = ?');
           $stmtId->execute([$monthYear, $base62Mac]);
@@ -190,6 +198,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cnt = (int)$stmtCount->fetchColumn();
           }
           $pdo->commit();
+          // 生成设备二维码图片
+          $codePngPath = $macDir . DIRECTORY_SEPARATOR . 'code.png';
+          $genScript   = __DIR__ . DIRECTORY_SEPARATOR . 'gen_code_png.py';
+          $cmdQr = escapeshellcmd('python3') . ' ' . escapeshellarg($genScript)
+                  . ' ' . escapeshellarg($base62Mac)
+                  . ' ' . escapeshellarg($codePngPath);
+          exec($cmdQr . ' 2>&1');
           $message = '注册成功：' . $monthYear . '/' . $base62Mac;
         } catch (Throwable $e) {
           $pdo->rollBack();
