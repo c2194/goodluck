@@ -35,6 +35,45 @@ function h(string $v): string {
     return htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
 }
 
+// ── 辅助：查询设备信息 ──────────────────────────────────────────────
+function queryDeviceInfo(PDO $pdo): ?array {
+    $month = trim($_GET['month'] ?? '');
+    $mac   = trim($_GET['mac'] ?? '');
+    $key   = trim($_GET['key'] ?? '');
+    if ($month === '' || $mac === '' || $key === '') return null;
+
+    $stmt = $pdo->prepare('SELECT * FROM devices WHERE month_year = ? AND mac_b62 = ? LIMIT 1');
+    $stmt->execute([$month, $mac]);
+    $dev = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$dev) return null;
+
+    // 验证 key 是否属于该设备
+    $stmtKey = $pdo->prepare('SELECT id FROM entries WHERE device_id = ? AND key = ? LIMIT 1');
+    $stmtKey->execute([(int)$dev['id'], $key]);
+    if (!$stmtKey->fetch()) return null;
+
+    // 统计该设备下的祝福条目数（state >= 2 表示已上传过）
+    $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM entries WHERE device_id = ? AND state >= 2');
+    $stmtCount->execute([(int)$dev['id']]);
+    $blessingCount = (int)$stmtCount->fetchColumn();
+
+    return [
+        'registered_at'  => (int)($dev['registered_at'] ?? 0),
+        'getlist_count'  => (int)($dev['getlist_count'] ?? 0),
+        'getlist_at'     => (int)($dev['getlist_at'] ?? 0),
+        'cell'           => (string)($dev['cell'] ?? ''),
+        'cell_at'        => (int)($dev['cell_at'] ?? 0),
+        'manual_location'=> (string)($dev['manual_location'] ?? ''),
+        'sleep'          => (int)($dev['sleep'] ?? 300),
+        'sleep_low'      => (int)($dev['sleep_low'] ?? 1800),
+        'attime'         => (int)($dev['attime'] ?? 0),
+        'time_start'     => (int)($dev['time_start'] ?? 0),
+        'time_end'       => (int)($dev['time_end'] ?? 1439),
+        'volume'         => (int)($dev['volume'] ?? 5),
+        'blessing_count' => $blessingCount,
+    ];
+}
+
 // ── AJAX GET: 列出已发布模板 ────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'list') {
     header('Content-Type: application/json; charset=utf-8');
@@ -62,7 +101,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'list') 
             'type_id' => (int)$r['type_id'],
         ];
     }
-    echo json_encode($result);
+    $deviceInfo = queryDeviceInfo($pdo);
+    $output = ['templates' => $result];
+    if ($deviceInfo !== null) $output['device'] = $deviceInfo;
+    echo json_encode($output);
     exit;
 }
 

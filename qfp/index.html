@@ -132,6 +132,41 @@
       font-size: 13px;
       color: var(--muted);
     }
+
+    /* 设备信息卡片 */
+    .device-info {
+      max-width: 480px;
+      margin: 14px auto 0;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: var(--muted);
+      display: none;
+    }
+    .device-info.show { display: block; }
+    .device-info-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    .device-info-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 12px;
+      align-items: baseline;
+    }
+    .di-label {
+      white-space: nowrap;
+      color: var(--muted);
+    }
+    .di-value {
+      color: var(--text);
+      word-break: break-all;
+    }
   </style>
 </head>
 <body>
@@ -144,6 +179,7 @@
     <div class="tab-item" data-tab="photo">图像类</div>
   </div>
   <div class="sub-bar" id="subBar"></div>
+  <div class="device-info" id="deviceInfo"></div>
 
   <div class="picker-main">
     <div class="tile-grid" id="tileGrid"></div>
@@ -156,10 +192,17 @@
     const tabs = tabBar.querySelectorAll('.tab-item');
     const search = window.location.search || '';
 
+    // 解析设备参数（4位月年 + 9位mac_b62 + 8位key）
+    const deviceMatch = (search + (window.location.hash || '')).match(/(\d{4})([A-Za-z0-9]{9})([A-Za-z0-9]{8})/);
+    const deviceMonth = deviceMatch ? deviceMatch[1] : '';
+    const deviceMac   = deviceMatch ? deviceMatch[2] : '';
+    const deviceKey   = deviceMatch ? deviceMatch[3] : '';
+
     let allTemplates = [];
     let allTypes = [];       // [{id, name}]
     let activeTab = null;    // 'graphic' | 'photo' | null
     let activeTypeId = null; // number | null
+    let deviceInfoData = null; // 设备信息，编码后传递给 apply 页面
 
     // 判断模板属于哪个大类
     function tplTab(tpl) {
@@ -176,7 +219,8 @@
         const applyPage = tpl.kind === 'photo' ? 'dl/template/pic_apply.html'
                         : tpl.kind === 'custom' ? 'dl/template/custom_apply.html'
                         : 'dl/template/apply.html';
-        a.href = applyPage + '?' + params.toString() + (search ? '&' + search.slice(1) : '');
+        const devInfoParam = deviceInfoData ? '&devinfo=' + encodeURIComponent(JSON.stringify(deviceInfoData)) : '';
+        a.href = applyPage + '?' + params.toString() + devInfoParam + (search ? '&' + search.slice(1) : '');
         const img = document.createElement('img');
         img.src = tpl.thumb ? ('dl/' + tpl.thumb) : '';
         img.alt = tpl.name;
@@ -258,14 +302,61 @@
       });
     });
 
+    // 分钟数 → HH:MM
+    function minsToTime(m) {
+      m = parseInt(m) || 0;
+      if (m < 0 || m > 1439) m = 0;
+      const h = Math.floor(m / 60), mm = m % 60;
+      return (h < 10 ? '0' : '') + h + ':' + (mm < 10 ? '0' : '') + mm;
+    }
+
+    // 渲染设备信息
+    function renderDeviceInfo(dev) {
+      const el = document.getElementById('deviceInfo');
+      if (!dev) { el.classList.remove('show'); return; }
+
+      const regDate = dev.registered_at ? new Date(dev.registered_at * 1000).toLocaleDateString('zh-CN') : '-';
+      const lastReq = dev.getlist_at ? new Date(dev.getlist_at * 1000).toLocaleString('zh-CN') : '-';
+      const cellAt  = dev.cell_at ? new Date(dev.cell_at * 1000).toLocaleString('zh-CN') : '';
+
+      const rows = [
+        ['注册时间', regDate],
+        ['请求次数', String(dev.getlist_count || 0)],
+        ['祝福数量', String(dev.blessing_count || 0)],
+        ['最后请求', lastReq],
+      ];
+      if (dev.cell) {
+        rows.push(['基站信息', dev.cell + (cellAt ? '  (' + cellAt + ')' : '')]);
+      }
+      if (dev.manual_location) {
+        rows.push(['手动位置', dev.manual_location]);
+      }
+      rows.push(['切换间隔', '正常 ' + dev.sleep + '秒 / 低电量 ' + dev.sleep_low + '秒']);
+      rows.push(['更新时刻', minsToTime(dev.attime)]);
+      rows.push(['运行时段', minsToTime(dev.time_start) + ' ~ ' + minsToTime(dev.time_end)]);
+      rows.push(['音量', String(dev.volume)]);
+
+      let html = '<div class="device-info-title">设备信息</div><div class="device-info-grid">';
+      rows.forEach(([label, value]) => {
+        html += '<span class="di-label">' + label + '</span><span class="di-value">' + value + '</span>';
+      });
+      html += '</div>';
+      el.innerHTML = html;
+      el.classList.add('show');
+    }
+
     // 初始化：同时加载模板列表和分类列表
     (async () => {
       try {
+        const devParams = deviceMonth ? `&month=${encodeURIComponent(deviceMonth)}&mac=${encodeURIComponent(deviceMac)}&key=${encodeURIComponent(deviceKey)}` : '';
         const [resTemplates, resTypes] = await Promise.all([
-          fetch('dl/template.php?action=list'),
-          fetch('dl/template.php?action=list_types')
+          fetch('dl/template.php?action=list' + devParams),
+          fetch('dl/template.php?action=list_types' + devParams)
         ]);
-        allTemplates = await resTemplates.json();
+        const listData = await resTemplates.json();
+        // 兼容新旧格式：新格式 {templates:[], device:{}} 旧格式 []
+        allTemplates = Array.isArray(listData) ? listData : (listData.templates || []);
+        if (listData.device) deviceInfoData = listData.device;
         const typesData = await resTypes.json();
         allTypes = (typesData.types || []).map(t => ({ id: Number(t.id), name: t.name }));
         // 初始：显示全部
