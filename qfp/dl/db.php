@@ -108,6 +108,25 @@ function getDb(): PDO {
         CREATE INDEX IF NOT EXISTS idx_parcels_agent ON parcels(agent_id);
         CREATE INDEX IF NOT EXISTS idx_parcel_devices_parcel ON parcel_devices(parcel_id);
         CREATE INDEX IF NOT EXISTS idx_parcel_devices_device ON parcel_devices(device_id);
+
+        CREATE TABLE IF NOT EXISTS upload_logs (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id   INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+            entry_id    INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+            month_year  TEXT    NOT NULL,
+            mac_b62     TEXT    NOT NULL,
+            entry_key   TEXT    NOT NULL,
+            state_after INTEGER NOT NULL,
+            mode        TEXT    NOT NULL DEFAULT \'\',
+            bg_path     TEXT    NOT NULL DEFAULT \'\',
+            ip          TEXT    NOT NULL DEFAULT \'\',
+            uploaded_at INTEGER NOT NULL,
+            img_status  TEXT    NOT NULL DEFAULT \'\',
+            audio_status TEXT   NOT NULL DEFAULT \'\'
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_upload_logs_device ON upload_logs(device_id);
+        CREATE INDEX IF NOT EXISTS idx_upload_logs_uploaded_at ON upload_logs(uploaded_at);
     ');
 
     // 兼容旧库：自动补充新增字段
@@ -126,7 +145,8 @@ function getDb(): PDO {
     if (!in_array('imei',   $colNames)) $pdo->exec("ALTER TABLE devices ADD COLUMN imei   TEXT    NOT NULL DEFAULT ''");
     if (!in_array('iccid',  $colNames)) $pdo->exec("ALTER TABLE devices ADD COLUMN iccid  TEXT    NOT NULL DEFAULT ''");
     if (!in_array('imsi',   $colNames)) $pdo->exec("ALTER TABLE devices ADD COLUMN imsi   TEXT    NOT NULL DEFAULT ''");
-    if (!in_array('sim_at', $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN sim_at INTEGER NOT NULL DEFAULT 0');
+    if (!in_array('sim_at',            $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN sim_at            INTEGER NOT NULL DEFAULT 0');
+    if (!in_array('last_upload_first', $colNames)) $pdo->exec('ALTER TABLE devices ADD COLUMN last_upload_first INTEGER NOT NULL DEFAULT 0');
     // 兼容旧状态值：将文本状态迁移为整数编号
     $pdo->exec("UPDATE devices SET factory_status = CASE factory_status
         WHEN 'new_registered' THEN 0

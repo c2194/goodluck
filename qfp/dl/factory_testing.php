@@ -940,7 +940,7 @@ if ($devices) {
                         <div class="test-note-indicator" data-note-display="8"></div>
                     </div>
                     <div class="test-actions">
-                        <button class="btn btn-copy" type="button" id="copyAllLinksBtn">复制全部连接</button>
+                        <button class="btn btn-copy" type="button" id="copyAllLinksBtn">生成二维码图片</button>
                         <div class="copy-status" id="copyStatus"></div>
                     </div>
                     <div class="test-result-btns">
@@ -999,6 +999,7 @@ if ($devices) {
     const copyStatus = document.getElementById('copyStatus');
     let selectedLinks = [];
     let currentDeviceId = null;
+    let currentDeviceCode = '';
     let testResultsCache = {};
 
     async function copyText(text) {
@@ -1020,6 +1021,7 @@ if ($devices) {
 
     function openTestPanel(deviceCode, deviceId) {
         currentDeviceId = deviceId;
+        currentDeviceCode = deviceCode;
         testPanelTitle.textContent = '设备测试项：' + deviceCode;
         testPanelSubtitle.textContent = '设备ID ' + deviceId + '，请按顺序完成下列测试瓷片。';
         selectedLinks = (deviceLinksMap[deviceId] || []).map((link) => window.location.origin + link);
@@ -1193,11 +1195,38 @@ if ($devices) {
             return;
         }
 
+        copyStatus.textContent = '正在生成二维码图片...';
+        copyAllLinksBtn.disabled = true;
         try {
-            await copyText(selectedLinks.join('\n'));
-            copyStatus.textContent = '已复制 ' + selectedLinks.length + ' 条连接';
+            const urls = selectedLinks.slice(0, 24);
+            const resp = await fetch('gen_qr_sheet.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ urls })
+            });
+            const data = await resp.json();
+            if (!resp.ok || data.error) {
+                copyStatus.textContent = '生成失败：' + (data.error || resp.status);
+                return;
+            }
+            // 将 base64 PNG 转换为 Blob 并触发下载
+            const binary = atob(data.png_b64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const blob = new Blob([bytes], { type: 'image/png' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = (currentDeviceCode || 'device') + '_qr_sheet.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            copyStatus.textContent = '已生成 ' + urls.length + ' 个二维码图片';
         } catch (error) {
-            copyStatus.textContent = '复制失败，请重试';
+            copyStatus.textContent = '生成失败，请重试';
+        } finally {
+            copyAllLinksBtn.disabled = false;
         }
     });
     testPanelModal.addEventListener('click', (event) => {

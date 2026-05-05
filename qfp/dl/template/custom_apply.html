@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>自定义图文祝福</title>
+  <title>二十四愿 · 最真的祝福</title>
   <style>
     :root {
       --bg: #0b0f14;
@@ -175,14 +175,111 @@
       overflow-y: auto;
       flex-direction: column;
       align-items: center;
+      justify-content: center;
     }
     .send-success-overlay.show { display: flex; }
-    .send-success-content { text-align: center; padding: 20px; width: 100%; max-width: 600px; }
-    .send-success-text { font-size: 20px; color: #fff; margin-bottom: 6px; font-weight: 700; }
-    .send-success-hint { font-size: 14px; color: #d1242f; margin-bottom: 20px; }
-    .success-imgs { display: flex; flex-direction: column; align-items: center; gap: 20px; }
-    .success-imgs a { display: block; }
-    .success-imgs img, .success-imgs canvas { max-width: 100%; border-radius: 10px; display: block; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); }
+    .send-success-content {
+      text-align: center;
+      padding: 20px;
+      width: 100%;
+      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .send-success-text { font-size: 32px; color: #d1242f; margin-bottom: 14px; font-weight: 800; text-align: center; }
+    .send-success-hint { font-size: 22px; color: #ffffff; margin-bottom: 16px; line-height: 1.6; font-weight: 600; text-align: center; }
+    .send-success-overlay.image-mode .send-success-text,
+    .send-success-overlay.image-mode .send-success-hint { display: none; }
+
+    .send-success-countdown {
+      font-size: 56px;
+      font-weight: 800;
+      color: #fff;
+      margin: 30px 0;
+      line-height: 1;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+    .send-success-countdown.tick {
+      transform: scale(1.25);
+      opacity: 0.85;
+    }
+
+    .success-swiper {
+      position: relative;
+      width: 100%;
+      overflow: hidden;
+      touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .swiper-track {
+      display: flex;
+      width: 100%;
+      transition: transform 0.3s ease;
+    }
+    .swiper-slide {
+      flex: 0 0 100%;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 0 4px;
+    }
+    .swiper-slide img {
+      max-width: 100%;
+      max-height: 75vh;
+      border-radius: 10px;
+      display: block;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.1);
+      pointer-events: none;
+    }
+
+    .swiper-arrow {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.45);
+      color: #fff;
+      font-size: 24px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 2;
+      user-select: none;
+    }
+    .swiper-arrow-left  { left: 8px; }
+    .swiper-arrow-right { right: 8px; }
+    .swiper-arrow.blink {
+      animation: arrowBlink 0.6s ease-in-out 4;
+    }
+    @keyframes arrowBlink {
+      0%, 100% { opacity: 0; }
+      50%      { opacity: 1; }
+    }
+
+    .swiper-dots {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .swiper-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.25);
+      transition: background 0.2s;
+    }
+    .swiper-dot.active { background: #fff; }
 
     /* 加载遮罩 */
     .overlay {
@@ -256,10 +353,19 @@
   <div id="sendSuccessOverlay" class="send-success-overlay">
     <div class="send-success-content">
       <div class="send-success-text">祝福已发送</div>
-      <div class="send-success-hint">请点击图片下载分享</div>
-      <div class="success-imgs">
-        <a id="dlGenerated" download="祝福分享.png"><img id="successGeneratedImg" alt="祝福分享" /></a>
-        <a id="dlGuapai" download="祝福挂牌.jpg"><img id="successGuapaiImg" alt="祝福挂牌" /></a>
+      <div class="send-success-hint">请截图<br>长按图片下载原图<br>左右滑动切图</div>
+      <div class="send-success-countdown" id="successCountdown">4</div>
+      <div class="success-swiper" id="successSwiper" style="display:none;">
+        <div class="swiper-track" id="swiperTrack">
+          <a class="swiper-slide" id="dlGenerated" download="祝福分享.png"><img id="successGeneratedImg" alt="祝福分享" /></a>
+          <a class="swiper-slide" id="dlGuapai" download="祝福挂牌.jpg"><img id="successGuapaiImg" alt="祝福挂牌" /></a>
+        </div>
+        <div class="swiper-arrow swiper-arrow-left" id="arrowLeft">&#10094;</div>
+        <div class="swiper-arrow swiper-arrow-right" id="arrowRight">&#10095;</div>
+      </div>
+      <div class="swiper-dots" id="swiperDots" style="display:none;">
+        <span class="swiper-dot active" data-idx="0"></span>
+        <span class="swiper-dot" data-idx="1"></span>
       </div>
     </div>
   </div>
@@ -348,6 +454,7 @@
     // ── URL 参数 ──────────────────────────────────────────────
     const urlParams  = new URLSearchParams(window.location.search);
     const templateId = urlParams.get('template_id') || '';
+    const devinfo = (() => { try { return JSON.parse(decodeURIComponent(urlParams.get('devinfo') || '{}')); } catch(e) { return {}; } })();
 
     // 设置底图
     (function () {
@@ -575,12 +682,12 @@
       return cv;
     }
 
-    /** 合成完整图（背景 + 文字）540×800 */
+    /** 合成完整图（背景 + 文字）540×850 */
     function buildFullCanvas() {
       const frame = document.getElementById('frame');
       const bgImg = document.getElementById('bgImg');
       const FW = 270, FH = 400;
-      const OUTPUT_W = 540, OUTPUT_H = 800;
+      const OUTPUT_W = 540, OUTPUT_H = 850;
       const SCALE = OUTPUT_W / FW;
       const cv = document.createElement('canvas');
       cv.width = OUTPUT_W; cv.height = OUTPUT_H;
@@ -652,6 +759,30 @@
         }
         ctx.restore();
       });
+
+      // 底部位置信息长条（在额外50px区域内）
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const barW = 540, barH = 40, barR = 10;
+      const barX = 0, barY = OUTPUT_H - barH;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(barX, barY);
+      ctx.lineTo(barX + barW, barY);
+      ctx.arcTo(barX + barW, barY + barH, barX, barY + barH, barR);
+      ctx.arcTo(barX, barY + barH, barX, barY, barR);
+      ctx.closePath();
+      ctx.fill();
+      const locText = (devinfo.manual_location || '').trim();
+      if (locText) {
+        ctx.fillStyle = '#333333';
+        ctx.font = '400 18px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('本祝福显示在' + locText, barX + barW / 2, barY + barH / 2, barW - 24);
+      }
+      ctx.restore();
+
       return cv;
     }
 
@@ -827,6 +958,88 @@
 
     const btnSendBlessing = document.getElementById('btnSendBlessing');
     const sendSuccessOverlay = document.getElementById('sendSuccessOverlay');
+    const successCountdownEl = document.getElementById('successCountdown');
+    const successSwiperEl    = document.getElementById('successSwiper');
+    const swiperTrackEl      = document.getElementById('swiperTrack');
+    const swiperDotsEl       = document.getElementById('swiperDots');
+    const arrowLeftEl        = document.getElementById('arrowLeft');
+    const arrowRightEl       = document.getElementById('arrowRight');
+
+    let _swipeIndex = 0;
+    let _swipeTotal = 1;
+
+    function setSwipeIndex(i) {
+      _swipeIndex = Math.max(0, Math.min(_swipeTotal - 1, i));
+      swiperTrackEl.style.transform = `translateX(${-_swipeIndex * 100}%)`;
+      swiperDotsEl.querySelectorAll('.swiper-dot').forEach((d, idx) => {
+        d.classList.toggle('active', idx === _swipeIndex);
+      });
+    }
+
+    swiperDotsEl.querySelectorAll('.swiper-dot').forEach(d => {
+      d.addEventListener('click', () => setSwipeIndex(parseInt(d.dataset.idx) || 0));
+    });
+    arrowLeftEl.addEventListener('click',  () => setSwipeIndex(_swipeIndex - 1));
+    arrowRightEl.addEventListener('click', () => setSwipeIndex(_swipeIndex + 1));
+
+    (function bindSwipe() {
+      let startX = 0, startY = 0, startT = 0, dragging = false;
+      successSwiperEl.addEventListener('pointerdown', e => {
+        if (_swipeTotal <= 1) return;
+        dragging = true; startX = e.clientX; startY = e.clientY; startT = Date.now();
+      });
+      successSwiperEl.addEventListener('pointerup', e => {
+        if (!dragging) return; dragging = false;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        const dt = Date.now() - startT;
+        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) && dt < 800) {
+          setSwipeIndex(_swipeIndex + (dx < 0 ? 1 : -1));
+        }
+      });
+      successSwiperEl.addEventListener('pointercancel', () => { dragging = false; });
+    })();
+
+    function showSuccessFlow(hasGuapai) {
+      _swipeTotal = hasGuapai ? 2 : 1;
+      const dots = swiperDotsEl.querySelectorAll('.swiper-dot');
+      dots.forEach((d, idx) => d.style.display = idx < _swipeTotal ? '' : 'none');
+      swiperDotsEl.style.display = _swipeTotal > 1 ? 'flex' : 'none';
+
+      sendSuccessOverlay.classList.add('show');
+      sendSuccessOverlay.classList.remove('image-mode');
+      successSwiperEl.style.display = 'none';
+      successCountdownEl.style.display = 'block';
+
+      let n = 4;
+      const tick = () => {
+        successCountdownEl.textContent = String(n);
+        successCountdownEl.classList.remove('tick');
+        void successCountdownEl.offsetWidth;
+        successCountdownEl.classList.add('tick');
+      };
+      tick();
+      const itv = setInterval(() => {
+        n--;
+        if (n <= 0) {
+          clearInterval(itv);
+          successCountdownEl.style.display = 'none';
+          successSwiperEl.style.display = 'block';
+          sendSuccessOverlay.classList.add('image-mode');
+          setSwipeIndex(0);
+          if (_swipeTotal > 1) {
+            arrowLeftEl.classList.remove('blink');
+            arrowRightEl.classList.remove('blink');
+            void arrowLeftEl.offsetWidth;
+            void arrowRightEl.offsetWidth;
+            arrowLeftEl.classList.add('blink');
+            arrowRightEl.classList.add('blink');
+          }
+        } else {
+          tick();
+        }
+      }, 1000);
+    }
 
     btnSendBlessing.addEventListener('click', async () => {
       btnSendBlessing.disabled = true;
@@ -841,7 +1054,7 @@
         const _d = new Date();
         const _datePrefix = `${_d.getFullYear()}年${_d.getMonth()+1}月${_d.getDate()}日`;
 
-        // 祝福分享图（背景 + 文字 540×800）
+        // 祝福分享图（背景 + 文字 540×850）
         const fullUrl = fullCanvas.toDataURL('image/png');
         const sgi = document.getElementById('successGeneratedImg');
         sgi.src = fullUrl;
@@ -849,24 +1062,48 @@
         dlGen.href = fullUrl;
         dlGen.download = _datePrefix + '祝福分享.png';
 
-        // 祝福挂牌图（540×805 背景 + 合成图缩小贴入）
+        // 祝福挂牌图（540×855 背景 + 合成图缩小贴入 + 底部位置长条）
+        let hasGuapai = false;
         if (guapaiBgImg) {
           const gpCv = document.createElement('canvas');
-          gpCv.width = 540; gpCv.height = 805;
+          gpCv.width = 540; gpCv.height = 855;
           const gpCtx = gpCv.getContext('2d');
           gpCtx.drawImage(guapaiBgImg, 0, 0, 540, 805);
           const scaledW = 240;
           const scaledH = Math.round(800 * 240 / 540);
           gpCtx.drawImage(fullCanvas, 0, 0, 540, 800, 160, 255, scaledW, scaledH);
+
+          const gpBarW = 540, gpBarH = 40, gpBarR = 10;
+          const gpBarY = 855 - gpBarH;
+          gpCtx.fillStyle = '#ffffff';
+          gpCtx.beginPath();
+          gpCtx.moveTo(0, gpBarY);
+          gpCtx.lineTo(gpBarW, gpBarY);
+          gpCtx.arcTo(gpBarW, gpBarY + gpBarH, 0, gpBarY + gpBarH, gpBarR);
+          gpCtx.arcTo(0, gpBarY + gpBarH, 0, gpBarY, gpBarR);
+          gpCtx.closePath();
+          gpCtx.fill();
+          const gpLocText = (devinfo.manual_location || '').trim();
+          if (gpLocText) {
+            gpCtx.fillStyle = '#333333';
+            gpCtx.font = '400 18px system-ui, sans-serif';
+            gpCtx.textAlign = 'center';
+            gpCtx.textBaseline = 'middle';
+            gpCtx.fillText('本祝福显示在' + gpLocText, gpBarW / 2, gpBarY + gpBarH / 2, gpBarW - 24);
+          }
+
           const gpUrl = gpCv.toDataURL('image/jpeg', 0.92);
           const sgpImg = document.getElementById('successGuapaiImg');
           sgpImg.src = gpUrl;
           const dlGuapai = document.getElementById('dlGuapai');
           dlGuapai.href = gpUrl;
           dlGuapai.download = _datePrefix + '祝福挂牌.jpg';
+          hasGuapai = true;
         }
 
-        sendSuccessOverlay.classList.add('show');
+        document.getElementById('dlGuapai').style.display = hasGuapai ? '' : 'none';
+
+        showSuccessFlow(hasGuapai);
       } catch (error) {
         alert(error.message || '上传失败');
       } finally {

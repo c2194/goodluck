@@ -53,11 +53,12 @@ if (isset($_POST['action']) && in_array($_POST['action'], ['db_entry', 'db_setup
         $timeEnd    = max(0, min(1439, intval($_POST['time_end']     ?? 1439)));
         $volume     = max(0, min(10,   intval($_POST['volume']       ?? 5)));
         $manualLocation = mb_substr(trim((string)($_POST['manual_location'] ?? '')), 0, 20);
+        $lastUploadFirst = isset($_POST['last_upload_first']) && $_POST['last_upload_first'] === '1' ? 1 : 0;
         if ($deviceId <= 0) {
             echo json_encode(['success' => false, 'error' => '参数无效']);
             exit;
         }
-        $pdo->prepare('UPDATE devices SET sleep=?, sleep_low=?, attime=?, time_start=?, time_end=?, volume=?, manual_location=? WHERE id=?')->execute([$sleepNormal, $sleepLow, $attime, $timeStart, $timeEnd, $volume, $manualLocation, $deviceId]);
+        $pdo->prepare('UPDATE devices SET sleep=?, sleep_low=?, attime=?, time_start=?, time_end=?, volume=?, manual_location=?, last_upload_first=? WHERE id=?')->execute([$sleepNormal, $sleepLow, $attime, $timeStart, $timeEnd, $volume, $manualLocation, $lastUploadFirst, $deviceId]);
         echo json_encode(['success' => true]);
         exit;
     }
@@ -1186,6 +1187,8 @@ function renderDbEntries(panel, entries, deviceId) {
             html += '<div class="setup-row"><span class="setup-label"></span><input class="setup-input" id="db-tend-' + deviceId + '" type="time" value="' + minsToTime(timeEndMins) + '"><span style="font-size:12px;color:#999;margin-left:4px">结束</span></div>';
             var volumeVal = (device.volume !== null && device.volume !== undefined) ? device.volume : 5;
             html += '<div class="setup-row"><label class="setup-label" for="db-volume-' + deviceId + '">音量</label><input class="setup-input" id="db-volume-' + deviceId + '" type="number" value="' + volumeVal + '" min="0" max="10"><span style="font-size:12px;color:#999;margin-left:4px">0-10</span></div>';
+            var lastUploadFirst = device.last_upload_first ? 1 : 0;
+            html += '<div class="setup-row"><label class="setup-label">最后上传排第一位</label><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="db-last-upload-first-' + deviceId + '" value="1"' + (lastUploadFirst ? ' checked' : '') + '><span style="font-size:12px;color:#666">勾选后，最近上传的用户排最前</span></label></div>';
             html += '<button class="setup-save-btn" onclick="saveDbSetup(this,' + deviceId + ')">保存</button>';
             html += '<button class="setup-clear-btn" onclick="clearDeviceFiles(this,' + deviceId + ')">清空图片位</button>';
             html += '</div>';
@@ -1269,6 +1272,8 @@ function saveDbSetup(btn, deviceId) {
     var tendStr    = document.getElementById('db-tend-'    + deviceId).value;
     var volumeVal  = document.getElementById('db-volume-'  + deviceId).value;
     var manualLocVal = document.getElementById('db-manual-loc-' + deviceId).value;
+    var lastUploadFirstEl = document.getElementById('db-last-upload-first-' + deviceId);
+    var lastUploadFirstVal = (lastUploadFirstEl && lastUploadFirstEl.checked) ? '1' : '0';
     function timeTomins(s) { var p = (s||'0:0').split(':'); return parseInt(p[0]||0)*60+parseInt(p[1]||0); }
     var atMins     = timeTomins(attimeStr);
     var tStartMins = timeTomins(tstartStr);
@@ -1283,6 +1288,7 @@ function saveDbSetup(btn, deviceId) {
     fd.append('time_end', tEndMins);
     fd.append('volume', volumeVal);
     fd.append('manual_location', manualLocVal);
+    fd.append('last_upload_first', lastUploadFirstVal);
     btn.disabled = true;
     btn.textContent = '保存中…';
     fetch(window.location.pathname, { method: 'POST', body: fd })
@@ -1299,6 +1305,7 @@ function saveDbSetup(btn, deviceId) {
                             dbDevicesCache[i].time_end = tEndMins;
                             dbDevicesCache[i].volume = parseInt(volumeVal);
                             dbDevicesCache[i].manual_location = manualLocVal;
+                            dbDevicesCache[i].last_upload_first = parseInt(lastUploadFirstVal);
                             break;
                         }
                     }

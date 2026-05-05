@@ -85,6 +85,20 @@ foreach ($stmtEnt->fetchAll() as $e) {
 	$result[$e['key']] = intval($e['state']);
 }
 
+// 若启用"最后上传排第一位"，查找本设备最近一次上传的 key 并置顶
+if (!empty($device['last_upload_first'])) {
+	$stmtLast = $pdo->prepare(
+		'SELECT entry_key FROM upload_logs WHERE device_id = ? ORDER BY uploaded_at DESC LIMIT 1'
+	);
+	$stmtLast->execute([$device['id']]);
+	$lastKey = $stmtLast->fetchColumn();
+	if ($lastKey !== false && array_key_exists($lastKey, $result)) {
+		$lastVal = $result[$lastKey];
+		unset($result[$lastKey]);
+		$result = array_merge([$lastKey => $lastVal], $result);
+	}
+}
+
 $result['SETUP'] = [
 	'systime'    => strval(time()),
 	'sleep'      => strval($device['sleep']      ?? 15),
@@ -93,6 +107,7 @@ $result['SETUP'] = [
 	'time_start' => strval($device['time_start']  ?? 0),
 	'time_end'   => strval($device['time_end']    ?? 1439),
 	'volume'     => strval($device['volume']      ?? 5),
+	'enqr'       => strval($device['last_upload_first'] ?? 0),
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE);

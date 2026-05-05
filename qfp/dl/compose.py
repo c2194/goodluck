@@ -72,6 +72,9 @@ def compose(bg_path, text_path, output_path):
     if text_path:
         bg = overlay_text(bg, text_path)
 
+    # 2.5) 旋转 180°
+    bg = bg.transpose(Image.Transpose.ROTATE_180)
+
     # 3) 创建 300x400 白色画布，将合成图靠左贴入
     canvas = Image.new('RGB', (OUTPUT_W, OUTPUT_H), (255, 255, 255))
     offset_x = 0

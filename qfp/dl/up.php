@@ -182,6 +182,29 @@ try {
 
 	$stmtUpdate = $pdo->prepare('UPDATE entries SET state = ? WHERE id = ?');
 	$stmtUpdate->execute([$newState, (int)$entryId]);
+
+	// 写入上传日志
+	$clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
+	$clientIp = trim(explode(',', $clientIp)[0]); // 取第一个 IP（代理链场景）
+	$stmtLog = $pdo->prepare(
+		'INSERT INTO upload_logs (device_id, entry_id, month_year, mac_b62, entry_key, state_after, mode, bg_path, ip, uploaded_at, img_status, audio_status)'
+		. ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+	);
+	$stmtLog->execute([
+		(int)$deviceId,
+		(int)$entryId,
+		$monthYear,
+		$mac62,
+		$key,
+		$newState,
+		$mode,
+		$bgPath,
+		$clientIp,
+		time(),
+		$imgStatus,
+		$audioStatus,
+	]);
+
 	$pdo->commit();
 	$transactionStarted = false;
 
