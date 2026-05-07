@@ -131,6 +131,15 @@ if (isset($_GET['ajax'])) {
             );
             $stmt->execute([$parcelId]);
             $updated = $stmt->rowCount();
+            if ($updated > 0) {
+                $devIds = $pdo->prepare('SELECT device_id FROM parcel_devices WHERE parcel_id = ?');
+                $devIds->execute([$parcelId]);
+                $logStmt = $pdo->prepare('INSERT INTO device_transfer_logs (device_id, from_status, to_status, operator_id, operator_name, operator_role, remark, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+                $now = time();
+                foreach ($devIds->fetchAll() as $row) {
+                    $logStmt->execute([(int)$row['device_id'], 6, 7, $user['id'], $user['display_name'], $user['role'], '代理商确认收货', $now]);
+                }
+            }
             $pdo->commit();
             echo json_encode(['ok' => true, 'updated' => $updated]);
         } catch (\Exception $e) {
@@ -282,6 +291,17 @@ if (isset($_GET['ajax'])) {
 
             $updateStmt = $pdo->prepare("UPDATE devices SET factory_status = 8 WHERE id IN ($placeholders) AND factory_status = 7");
             $updateStmt->execute($deviceIds);
+
+            $dealerInfoStmt = $pdo->prepare('SELECT display_name FROM accounts WHERE id = ? LIMIT 1');
+            $dealerInfoStmt->execute([$dealerId]);
+            $dealerRow = $dealerInfoStmt->fetch();
+            $dealerName = $dealerRow ? $dealerRow['display_name'] : '';
+            $logRemark = '发货给经销商：' . $dealerName . ($trackingNumber ? '，快递单号：' . $trackingNumber : '');
+            $logStmt = $pdo->prepare('INSERT INTO device_transfer_logs (device_id, from_status, to_status, operator_id, operator_name, operator_role, remark, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+            $now2 = time();
+            foreach ($deviceIds as $did) {
+                $logStmt->execute([$did, 7, 8, $user['id'], $user['display_name'], $user['role'], $logRemark, $now2]);
+            }
 
             $pdo->commit();
             echo json_encode(['ok' => true, 'parcel_id' => $parcelId]);

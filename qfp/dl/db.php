@@ -127,6 +127,21 @@ function getDb(): PDO {
 
         CREATE INDEX IF NOT EXISTS idx_upload_logs_device ON upload_logs(device_id);
         CREATE INDEX IF NOT EXISTS idx_upload_logs_uploaded_at ON upload_logs(uploaded_at);
+
+        CREATE TABLE IF NOT EXISTS device_transfer_logs (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id     INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+            from_status   INTEGER NOT NULL DEFAULT -1,
+            to_status     INTEGER NOT NULL,
+            operator_id   INTEGER NOT NULL DEFAULT 0,
+            operator_name TEXT    NOT NULL DEFAULT \'\',
+            operator_role TEXT    NOT NULL DEFAULT \'\',
+            remark        TEXT    NOT NULL DEFAULT \'\',
+            created_at    INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_transfer_logs_device ON device_transfer_logs(device_id);
+        CREATE INDEX IF NOT EXISTS idx_transfer_logs_created ON device_transfer_logs(created_at);
     ');
 
     // 兼容旧库：自动补充新增字段

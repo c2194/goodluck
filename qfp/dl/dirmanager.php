@@ -105,86 +105,14 @@ if (isset($_POST['action']) && in_array($_POST['action'], ['db_entry', 'db_setup
 // API 处理
 if (isset($_POST['action']) && isset($_POST['path']) && isset($_POST['key'])) {
     header('Content-Type: application/json; charset=utf-8');
-    
-    $action = $_POST['action'];
-    $path = $_POST['path'];
-    $key = $_POST['key'];
-    $state = isset($_POST['state']) ? intval($_POST['state']) : 0;
-    
-    // 安全检查
-    $path = str_replace(['..', '\\'], ['', '/'], $path);
-    $path = trim($path, '/');
-    
-    $baseDir = __DIR__;
-    $fullPath = $baseDir . ($path ? DIRECTORY_SEPARATOR . $path : '');
-    $configPath = $fullPath . DIRECTORY_SEPARATOR . 'config.json';
-    
-    if (!is_file($configPath)) {
-        echo json_encode(['success' => false, 'error' => '配置文件不存在']);
-        exit;
-    }
-    
-    $config = json_decode(file_get_contents($configPath), true);
-    if (!is_array($config) || !isset($config[$key])) {
-        echo json_encode(['success' => false, 'error' => '无效的key']);
-        exit;
-    }
-    
-    if ($action === 'enable') {
-        // 开启：state 0 -> 1
-        $config[$key]['state'] = '1';
-    } elseif ($action === 'disable') {
-        // 禁用：state 1 -> 0
-        $config[$key]['state'] = '0';
-    } elseif ($action === 'close') {
-        // 关闭：删除文件，state -> 0
-        $mp3File = $fullPath . DIRECTORY_SEPARATOR . $key . $state . '.mp3';
-        $pngFile = $fullPath . DIRECTORY_SEPARATOR . $key . $state . '.png';
-        if (is_file($mp3File)) unlink($mp3File);
-        if (is_file($pngFile)) unlink($pngFile);
-        $config[$key]['state'] = '0';
-    }
-    
-    file_put_contents($configPath, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-    echo json_encode(['success' => true, 'newState' => intval($config[$key]['state'])]);
+    echo json_encode(['success' => false, 'error' => '目录视图功能已移除']);
     exit;
 }
 
 // API: 更新 SETUP 配置
 if (isset($_POST['action']) && $_POST['action'] === 'setup' && isset($_POST['path'])) {
     header('Content-Type: application/json; charset=utf-8');
-    $path = $_POST['path'];
-    $path = str_replace(['..', '\\'], ['', '/'], $path);
-    $path = trim($path, '/');
-    $baseDir = __DIR__;
-    $fullPath = $baseDir . ($path ? DIRECTORY_SEPARATOR . $path : '');
-    $configPath = $fullPath . DIRECTORY_SEPARATOR . 'config.json';
-
-    if (!is_file($configPath)) {
-        echo json_encode(['success' => false, 'error' => '配置文件不存在']);
-        exit;
-    }
-
-    $config = json_decode(file_get_contents($configPath), true);
-    if (!is_array($config)) {
-        echo json_encode(['success' => false, 'error' => '配置文件格式错误']);
-        exit;
-    }
-
-    $sleep  = isset($_POST['sleep'])  ? strval(intval($_POST['sleep']))  : '15';
-    $attime = isset($_POST['attime']) ? strval(intval($_POST['attime'])) : '3000';
-    $volume = isset($_POST['volume']) ? strval(max(0, min(10, intval($_POST['volume'])))) : '5';
-
-    if (!isset($config['SETUP'])) {
-        $config['SETUP'] = ['systime' => strval(time()), 'sleep' => $sleep, 'attime' => $attime, 'volume' => $volume];
-    } else {
-        $config['SETUP']['sleep']  = $sleep;
-        $config['SETUP']['attime'] = $attime;
-        $config['SETUP']['volume'] = $volume;
-    }
-
-    file_put_contents($configPath, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-    echo json_encode(['success' => true]);
+    echo json_encode(['success' => false, 'error' => '目录视图功能已移除']);
     exit;
 }
 ?>
@@ -550,12 +478,11 @@ if (isset($_POST['action']) && $_POST['action'] === 'setup' && isset($_POST['pat
 <body>
 
 <div class="tab-bar">
-    <button id="tab-dir" class="tab-btn tab-active" onclick="switchTab('dir')">📁 目录视图</button>
-    <button id="tab-db"  class="tab-btn"            onclick="switchTab('db')">🗄 数据库视图</button>
+    <button id="tab-db" class="tab-btn tab-active">🗄 数据库视图</button>
     <button class="tab-btn" onclick="location.href='template.php'">🖼 模板编辑</button>
 </div>
 
-<div id="dir-view">
+<div id="dir-view" style="display:none">
 
 <?php
 $baseDir = __DIR__;
@@ -943,25 +870,6 @@ document.addEventListener('load', function(e) {
             .catch(function() {});
     }
 }, true);
-
-function switchTab(tab) {
-    var dirView = document.getElementById('dir-view');
-    var dbView  = document.getElementById('db-view');
-    var tabDir  = document.getElementById('tab-dir');
-    var tabDb   = document.getElementById('tab-db');
-    if (tab === 'dir') {
-        dirView.style.display = '';
-        dbView.style.display  = 'none';
-        tabDir.classList.add('tab-active');
-        tabDb.classList.remove('tab-active');
-    } else {
-        dirView.style.display = 'none';
-        dbView.style.display  = '';
-        tabDir.classList.remove('tab-active');
-        tabDb.classList.add('tab-active');
-        loadDbDevices();
-    }
-}
 
 function minsToTime(m) {
     m = parseInt(m);
@@ -1360,10 +1268,16 @@ function clearDeviceFiles(btn, deviceId) {
 
 </div><!-- #dir-view -->
 
-<div id="db-view" style="display:none">
+<div id="db-view">
     <div class="breadcrumb" id="db-breadcrumb" style="display:none"></div>
     <div id="db-devices-list"></div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadDbDevices();
+});
+</script>
 
 </body>
 </html>

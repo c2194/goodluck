@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>扫描二维码</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            height: 100%;
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: "PingFang SC", "Segoe UI", sans-serif;
+            overflow: hidden;
+        }
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        /* ── 顶栏 ── */
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+        .topbar h1 { font-size: 18px; font-weight: 700; letter-spacing: 1px; }
+        .topbar-btn {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            border-radius: 20px;
+            padding: 7px 14px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .topbar-btn:active { background: #30363d; }
+
+        /* ── 相机区域 ── */
+        #cameraWrap {
+            position: relative;
+            flex: 1;
+            overflow: hidden;
+            background: #000;
+        }
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* 取景框叠加层 */
+        .overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+        .overlay svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 扫描线动画 */
+        .scan-line {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(min(70vw, 70vh));
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #58a6ff, transparent);
+            border-radius: 1px;
+            animation: scanAnim 2s ease-in-out infinite;
+        }
+        @keyframes scanAnim {
+            0%   { top: calc(50% - min(35vw, 35vh)); opacity: 1; }
+            50%  { opacity: 1; }
+            100% { top: calc(50% + min(35vw, 35vh)); opacity: 0.3; }
+        }
+
+        /* 提示文字 */
+        .hint {
+            position: absolute;
+            bottom: 20px;
+            left: 0; right: 0;
+            text-align: center;
+            font-size: 13px;
+            color: rgba(255,255,255,0.6);
+            pointer-events: none;
+        }
+
+        /* ── 开始页 ── */
+        #startScreen {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            background: #0d1117;
+            z-index: 5;
+        }
+        #startScreen .icon { font-size: 64px; }
+        #startScreen p { color: #8b949e; font-size: 14px; text-align: center; padding: 0 32px; line-height: 1.7; }
+        #startBtn {
+            background: linear-gradient(135deg, #1f6feb, #388bfd);
+            border: none;
+            color: #fff;
+            border-radius: 50px;
+            padding: 14px 36px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(31,111,235,0.4);
+        }
+        #startBtn:active { opacity: 0.85; }
+
+        /* ── 结果面板 ── */
+        #resultPanel {
+            position: absolute;
+            left: 0; right: 0; bottom: 0;
+            background: #161b22;
+            border-top: 1px solid #30363d;
+            border-radius: 20px 20px 0 0;
+            padding: 20px 18px 32px;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            z-index: 20;
+            max-height: 60%;
+            overflow-y: auto;
+        }
+        #resultPanel.show { transform: translateY(0); }
+        .result-label { font-size: 12px; color: #8b949e; margin-bottom: 8px; letter-spacing: 1px; }
+        #resultText {
+            font-size: 15px;
+            color: #e6edf3;
+            word-break: break-all;
+            line-height: 1.7;
+            margin-bottom: 16px;
+            padding: 12px 14px;
+            background: #0d1117;
+            border-radius: 12px;
+            border: 1px solid #30363d;
+            min-height: 48px;
+        }
+        .result-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .result-actions button {
+            flex: 1;
+            border: none;
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        #copyBtn  { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+        #openBtn  { background: linear-gradient(135deg, #1f6feb, #388bfd); color: #fff; display: none; }
+        #scanAgainBtn { background: #238636; color: #fff; }
+        #copyBtn:active, #openBtn:active, #scanAgainBtn:active { opacity: 0.8; }
+
+        /* 解析字段 */
+        #parsedFields {
+            margin-bottom: 14px;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .parsed-row {
+            display: flex;
+            align-items: center;
+            padding: 10px 14px;
+            gap: 12px;
+            border-bottom: 1px solid #21262d;
+        }
+        .parsed-row:last-child { border-bottom: none; }
+        .parsed-key {
+            font-size: 11px;
+            color: #8b949e;
+            letter-spacing: 0.5px;
+            flex-shrink: 0;
+            width: 60px;
+        }
+        .parsed-val {
+            font-size: 15px;
+            color: #58a6ff;
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        /* 复制成功提示 */
+        #toast {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: #238636;
+            color: #fff;
+            border-radius: 20px;
+            padding: 8px 20px;
+            font-size: 13px;
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.2s;
+            z-index: 100;
+            pointer-events: none;
+        }
+        #toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* 错误提示 */
+        #errorMsg {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #da3633;
+            color: #fff;
+            border-radius: 14px;
+            padding: 16px 22px;
+            font-size: 14px;
+            text-align: center;
+            z-index: 30;
+            max-width: 80%;
+        }
+    </style>
+    <script src="jsQR.js"></script>
+</head>
+<body>
+<div id="app">
+    <div class="topbar">
+        <h1>📷 扫码</h1>
+        <button class="topbar-btn" id="switchCamBtn" style="display:none;">翻转</button>
+    </div>
+
+    <div id="cameraWrap">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="qrCanvas" style="display:none;"></canvas>
+
+        <!-- 取景框 SVG -->
+        <div class="overlay">
+            <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+                <!-- 半透明遮罩，中间镂空 -->
+                <defs>
+                    <mask id="cutout">
+                        <rect width="100" height="100" fill="white"/>
+                        <rect x="15" y="15" width="70" height="70" rx="3" fill="black"/>
+                    </mask>
+                </defs>
+                <rect width="100" height="100" fill="rgba(0,0,0,0.45)" mask="url(#cutout)"/>
+                <!-- 四角 L 形 -->
+                <g stroke="#58a6ff" stroke-width="0.8" fill="none" stroke-linecap="round">
+                    <polyline points="15,24 15,15 24,15"/>
+                    <polyline points="76,15 85,15 85,24"/>
+                    <polyline points="85,76 85,85 76,85"/>
+                    <polyline points="24,85 15,85 15,76"/>
+                </g>
+            </svg>
+        </div>
+
+        <div class="scan-line" id="scanLine" style="display:none;"></div>
+        <div class="hint" id="hintText" style="display:none;">将二维码放入框内自动识别</div>
+
+        <!-- 开始页 -->
+        <div id="startScreen">
+            <div class="icon">📷</div>
+            <p>点击下方按钮开启摄像头<br>对准二维码即可自动扫描</p>
+            <button id="startBtn">开始扫描</button>
+        </div>
+
+        <div id="errorMsg"></div>
+    </div>
+
+    <!-- 结果面板 -->
+    <div id="resultPanel">
+        <div class="result-label">扫描结果</div>
+        <div id="resultText"></div>
+        <!-- 解析后的字段（仅 gl99.top/qfp 链接显示） -->
+        <div id="parsedFields" style="display:none;">
+            <div class="parsed-row">
+                <span class="parsed-key">设备 ID</span>
+                <span class="parsed-val" id="parsedDevice"></span>
+            </div>
+            <div class="parsed-row">
+                <span class="parsed-key">用户 Key</span>
+                <span class="parsed-val" id="parsedUserKey"></span>
+            </div>
+        </div>
+        <div class="result-actions">
+            <button id="copyBtn">复制</button>
+            <button id="openBtn">打开链接</button>
+            <button id="scanAgainBtn">继续扫描</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast">已复制</div>
+
+<script>
+(function () {
+    const video       = document.getElementById('video');
+    const startScreen = document.getElementById('startScreen');
+    const startBtn    = document.getElementById('startBtn');
+    const switchCamBtn= document.getElementById('switchCamBtn');
+    const scanLine    = document.getElementById('scanLine');
+    const hintText    = document.getElementById('hintText');
+    const resultPanel = document.getElementById('resultPanel');
+    const resultText  = document.getElementById('resultText');
+    const parsedFields   = document.getElementById('parsedFields');
+    const parsedDevice   = document.getElementById('parsedDevice');
+    const parsedUserKey  = document.getElementById('parsedUserKey');
+    const copyBtn     = document.getElementById('copyBtn');
+    const openBtn     = document.getElementById('openBtn');
+    const scanAgainBtn= document.getElementById('scanAgainBtn');
+    const errorMsg    = document.getElementById('errorMsg');
+    const toast       = document.getElementById('toast');
+    const qrCanvas    = document.getElementById('qrCanvas');
+    const qrCtx       = qrCanvas.getContext('2d');
+
+    let stream = null;
+    let scanning = false;
+    let animId = null;
+    let facingMode = 'environment'; // 后置摄像头
+    let hasFront = false;
+
+    // ── 检测是否支持 BarcodeDetector ──
+    let detector = null;
+    (async () => {
+        if (!('BarcodeDetector' in window)) return;
+        try {
+            const supported = await BarcodeDetector.getSupportedFormats();
+            if (supported.includes('qr_code')) {
+                detector = new BarcodeDetector({ formats: ['qr_code'] });
+            } else {
+                detector = new BarcodeDetector({ formats: ['qr_code'] });
+            }
+        } catch (e) {
+            try { detector = new BarcodeDetector({ formats: ['qr_code'] }); } catch (_) {}
+        }
+    })();
+
+    // ── 枚举摄像头，判断是否有前置 ──
+    async function detectCameras() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const cams = devices.filter(d => d.kind === 'videoinput');
+            if (cams.length > 1) {
+                hasFront = true;
+                switchCamBtn.style.display = '';
+            }
+        } catch (e) {}
+    }
+
+    // ── 启动摄像头 ──
+    async function startCamera() {
+        stopCamera();
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: { ideal: facingMode },
+                    width:  { ideal: 1280 },
+                    height: { ideal: 720 }
+                },
+                audio: false
+            });
+            video.srcObject = stream;
+            await video.play();
+        } catch (err) {
+            const name = err.name || '';
+            if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+                showError('摄像头权限被拒绝。\n请在浏览器设置中允许本页面访问摄像头，然后刷新重试。');
+            } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+                showError('未检测到摄像头设备。');
+            } else if (name === 'NotReadableError') {
+                showError('摄像头被其他应用占用，请关闭后重试。');
+            } else {
+                showError('无法访问摄像头：' + (err.message || name));
+            }
+            return;
+        }
+    }
+
+    function stopCamera() {
+        if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+            stream = null;
+        }
+        video.srcObject = null;
+    }
+
+    // ── 统一扫描循环 ──
+    // 每帧先画到 canvas（缩放到 ≤640px），再依次尝试 BarcodeDetector(canvas) → jsQR
+    // BarcodeDetector 直接对 video 在部分手机上静默失败，改用 canvas 输入更可靠
+    const JSQR_MAX_W = 640;
+
+    function startScan() {
+        scanning = true;
+        if (detector || typeof jsQR === 'function') {
+            doScanFrame();
+        } else {
+            stopCamera();
+            showError('您的浏览器不支持二维码扫描，请使用 Chrome / Safari / Edge 最新版。');
+        }
+    }
+
+    function stopScan() {
+        scanning = false;
+        if (animId) { cancelAnimationFrame(animId); animId = null; }
+    }
+
+    async function doScanFrame() {
+        if (!scanning) return;
+
+        if (video.readyState >= 2 && video.videoWidth > 0) {
+            // 缩放绘制到 canvas
+            const scale = Math.min(1, JSQR_MAX_W / video.videoWidth);
+            const w = Math.round(video.videoWidth  * scale);
+            const h = Math.round(video.videoHeight * scale);
+            if (qrCanvas.width !== w)  qrCanvas.width  = w;
+            if (qrCanvas.height !== h) qrCanvas.height = h;
+            qrCtx.drawImage(video, 0, 0, w, h);
+
+            // 方法一：BarcodeDetector（对 canvas 输入，避免部分手机 video 不支持）
+            if (detector) {
+                try {
+                    const codes = await detector.detect(qrCanvas);
+                    if (codes.length > 0) { onResult(codes[0].rawValue); return; }
+                } catch (e) {
+                    detector = null; // 失败则永久关闭，改走 jsQR
+                }
+            }
+
+            // 方法二：jsQR（Canvas ImageData）
+            if (typeof jsQR === 'function') {
+                const imageData = qrCtx.getImageData(0, 0, w, h);
+                const code = jsQR(imageData.data, w, h, { inversionAttempts: 'attemptBoth' });
+                if (code && code.data) { onResult(code.data); return; }
+            }
+        }
+
+        animId = requestAnimationFrame(doScanFrame);
+    }
+
+    // ── 扫描到结果 ──
+    function onResult(text) {
+        stopScan();
+        scanLine.style.display = 'none';
+
+        // 震动反馈
+        if (navigator.vibrate) navigator.vibrate([80, 30, 80]);
+
+        resultText.textContent = text;
+
+        // 解析 gl99.top/qfp/?XXXX 格式
+        // 格式：month_year(4) + mac_b62(9) + key(8) = 21字符
+        parsedFields.style.display = 'none';
+        try {
+            const u = new URL(text);
+            const qs = u.search.slice(1); // 去掉 '?'
+            if (/gl99\.top/.test(u.hostname) && u.pathname.startsWith('/qfp') && qs.length >= 13) {
+                const monthYear = qs.slice(0, 4);   // e.g. 0426
+                const macB62    = qs.slice(4, 13);  // e.g. aJlrmKzNM (9位)
+                const userKey   = qs.slice(13);     // e.g. 6zovT8R2
+                parsedDevice.textContent  = monthYear + ' / ' + macB62;
+                parsedUserKey.textContent = userKey;
+                parsedFields.style.display = '';
+            }
+        } catch (e) {}
+
+        // 判断是否是链接
+        const isURL = /^https?:\/\//i.test(text);
+        openBtn.style.display = isURL ? '' : 'none';
+        openBtn.onclick = () => window.open(text, '_blank');
+
+        resultPanel.classList.add('show');
+    }
+
+    // ── 继续扫描 ──
+    function resumeScan() {
+        resultPanel.classList.remove('show');
+        resultText.textContent = '';
+        parsedFields.style.display = 'none';
+        parsedDevice.textContent = '';
+        parsedUserKey.textContent = '';
+        openBtn.style.display = 'none';
+        scanLine.style.display = '';
+        startScan();
+    }
+
+    // ── 错误提示 ──
+    function showError(msg) {
+        errorMsg.textContent = msg;
+        errorMsg.style.display = 'block';
+    }
+
+    // ── 事件绑定 ──
+    startBtn.addEventListener('click', async () => {
+        // 检测安全上下文（手机端必须 HTTPS）
+        if (!window.isSecureContext) {
+            showError('摄像头需要 HTTPS 才能使用。\n请通过 https:// 访问本页面，或使用 localhost。');
+            return;
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showError('当前浏览器不支持摄像头访问，请使用 Chrome / Safari / Edge 最新版。');
+            return;
+        }
+        startScreen.style.display = 'none';
+        errorMsg.style.display = 'none';
+        await detectCameras();
+        await startCamera();
+        if (!stream) return;
+        scanLine.style.display = '';
+        hintText.style.display = '';
+        startScan();
+    });
+
+    switchCamBtn.addEventListener('click', async () => {
+        stopScan();
+        facingMode = (facingMode === 'environment') ? 'user' : 'environment';
+        await startCamera();
+        if (stream) startScan();
+    });
+
+    copyBtn.addEventListener('click', async () => {
+        const text = resultText.textContent;
+        if (!text) return;
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch (e) {
+            // 降级
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+        }
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 1800);
+    });
+
+    scanAgainBtn.addEventListener('click', resumeScan);
+
+    // 点击遮罩关闭结果面板
+    resultPanel.addEventListener('click', (e) => {
+        if (e.target === resultPanel) resumeScan();
+    });
+})();
+</script>
+</body>
+</html>

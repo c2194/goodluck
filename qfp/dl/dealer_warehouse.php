@@ -113,8 +113,18 @@ if (isset($_GET['ajax'])) {
                    AND factory_status = 8'
             );
             $stmt->execute([$parcelId]);
+            $updated = $stmt->rowCount();
+            if ($updated > 0) {
+                $devIds = $pdo->prepare('SELECT device_id FROM parcel_devices WHERE parcel_id = ?');
+                $devIds->execute([$parcelId]);
+                $logStmt = $pdo->prepare('INSERT INTO device_transfer_logs (device_id, from_status, to_status, operator_id, operator_name, operator_role, remark, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+                $now = time();
+                foreach ($devIds->fetchAll() as $row) {
+                    $logStmt->execute([(int)$row['device_id'], 8, 9, $user['id'], $user['display_name'], $user['role'], '经销商确认收货', $now]);
+                }
+            }
             $pdo->commit();
-            echo json_encode(['ok' => true, 'updated' => $stmt->rowCount()]);
+            echo json_encode(['ok' => true, 'updated' => $updated]);
         } catch (\Exception $e) {
             $pdo->rollBack();
             echo json_encode(['error' => '操作失败：' . $e->getMessage()]);

@@ -48,9 +48,11 @@ function queryDeviceInfo(PDO $pdo): ?array {
     if (!$dev) return null;
 
     // 验证 key 是否属于该设备
-    $stmtKey = $pdo->prepare('SELECT id FROM entries WHERE device_id = ? AND key = ? LIMIT 1');
+    $stmtKey = $pdo->prepare('SELECT id, state FROM entries WHERE device_id = ? AND key = ? LIMIT 1');
     $stmtKey->execute([(int)$dev['id'], $key]);
-    if (!$stmtKey->fetch()) return null;
+    $entry = $stmtKey->fetch(PDO::FETCH_ASSOC);
+    if (!$entry) return null;
+    $entryState = (int)$entry['state'];
 
     // 统计该设备下的祝福条目数（state >= 2 表示已上传过）
     $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM entries WHERE device_id = ? AND state >= 2');
@@ -71,6 +73,8 @@ function queryDeviceInfo(PDO $pdo): ?array {
         'time_end'       => (int)($dev['time_end'] ?? 1439),
         'volume'         => (int)($dev['volume'] ?? 5),
         'blessing_count' => $blessingCount,
+        'factory_status' => (int)($dev['factory_status'] ?? 0),
+        'entry_state'    => $entryState,
     ];
 }
 

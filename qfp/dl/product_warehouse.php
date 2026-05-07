@@ -84,7 +84,11 @@ if (isset($_GET['ajax'])) {
                 }
             }
         }
-        echo json_encode(['ok' => true, 'results' => $results, 'photos' => $photos]);
+        echo json_encode(['ok' => true, 'results' => $results, 'photos' => $photos, 'transfer_logs' => (function() use ($pdo, $deviceId) {
+            $s = $pdo->prepare('SELECT tl.from_status, tl.to_status, tl.operator_name, tl.operator_role, tl.remark, tl.created_at FROM device_transfer_logs tl WHERE tl.device_id = ? ORDER BY tl.created_at ASC, tl.id ASC');
+            $s->execute([$deviceId]);
+            return $s->fetchAll();
+        })()]);
         exit;
     }
 
@@ -98,6 +102,8 @@ if (isset($_GET['ajax'])) {
         $stmt = $pdo->prepare('UPDATE devices SET factory_status = 4 WHERE id = ? AND factory_status = 3');
         $stmt->execute([$deviceId]);
         if ($stmt->rowCount() > 0) {
+            $logStmt = $pdo->prepare('INSERT INTO device_transfer_logs (device_id, from_status, to_status, operator_id, operator_name, operator_role, remark, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+            $logStmt->execute([$deviceId, 3, 4, $user['id'], $user['display_name'], $user['role'] ?? 'admin', '退回工厂', time()]);
             echo json_encode(['ok' => true]);
         } else {
             echo json_encode(['error' => '状态更新失败，设备可能已不在待接收状态']);
@@ -115,6 +121,8 @@ if (isset($_GET['ajax'])) {
         $stmt = $pdo->prepare('UPDATE devices SET factory_status = 5 WHERE id = ? AND factory_status = 3');
         $stmt->execute([$deviceId]);
         if ($stmt->rowCount() > 0) {
+            $logStmt = $pdo->prepare('INSERT INTO device_transfer_logs (device_id, from_status, to_status, operator_id, operator_name, operator_role, remark, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+            $logStmt->execute([$deviceId, 3, 5, $user['id'], $user['display_name'], $user['role'] ?? 'admin', '', time()]);
             echo json_encode(['ok' => true]);
         } else {
             echo json_encode(['error' => '状态更新失败，设备可能已不在待接收状态']);
@@ -192,6 +200,17 @@ if (isset($_GET['ajax'])) {
 
             $updateStmt = $pdo->prepare("UPDATE devices SET factory_status = 6 WHERE id IN ($placeholders) AND factory_status = 5");
             $updateStmt->execute($deviceIds);
+
+            $logStmt = $pdo->prepare('INSERT INTO device_transfer_logs (device_id, from_status, to_status, operator_id, operator_name, operator_role, remark, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+            $agentStmt = $pdo->prepare('SELECT display_name FROM accounts WHERE id = ? LIMIT 1');
+            $agentStmt->execute([$agentId]);
+            $agentRow = $agentStmt->fetch();
+            $agentName = $agentRow ? $agentRow['display_name'] : '';
+            $logRemark = '发货给代理商：' . $agentName . ($trackingNumber ? '，快递单号：' . $trackingNumber : '');
+            $now2 = time();
+            foreach ($deviceIds as $did) {
+                $logStmt->execute([$did, 5, 6, $user['id'], $user['display_name'], $user['role'] ?? 'admin', $logRemark, $now2]);
+            }
 
             $pdo->commit();
             echo json_encode(['ok' => true, 'parcel_id' => $parcelId]);
@@ -1054,7 +1073,12 @@ if ($tab === 'agent') {
             </div>
 
             <div class="detail-section">
-                <h4 class="detail-section-title">📷 SIM卡号照片</h4>
+                <h4 class="detail-section-title">� 流转历史</h4>
+                <div id="transferLogsList"></div>
+            </div>
+
+            <div class="detail-section">
+                <h4 class="detail-section-title">�📷 SIM卡号照片</h4>
                 <div class="detail-photo-grid" id="photosSimGrid"></div>
             </div>
 
@@ -1259,8 +1283,45 @@ if ($tab === 'agent') {
         }
     }
 
+    const transferLogsList = document.getElementById('transferLogsList');
+
+    const STATUS_LABELS = {
+        0: '新注册', 1: '设备测试阶段', 2: '合格待转库', 3: '转出待接收',
+        4: '返回工厂中', 5: '已入售前库', 6: '已发代理商',
+        7: '代理商已入库', 8: '已发经销商', 9: '经销商已入库'
+    };
+
+    function renderTransferLogs(logs) {
+        transferLogsList.innerHTML = '';
+        if (!logs || !logs.length) {
+            transferLogsList.innerHTML = '<span style="color:#94a3b8;font-size:13px">暂无流转记录</span>';
+            return;
+        }
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
+        logs.forEach(log => {
+            const from = STATUS_LABELS[log.from_status] || ('#' + log.from_status);
+            const to = STATUS_LABELS[log.to_status] || ('#' + log.to_status);
+            const dt = new Date(log.created_at * 1000).toLocaleString('zh-CN');
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;';
+            row.innerHTML = `
+                <div style="flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:#3068ff;margin-top:5px;"></div>
+                <div style="flex:1;">
+                    <div style="font-weight:600;color:#1e2a3a;">${from} → ${to}</div>
+                    <div style="color:#627188;margin-top:2px;">操作人：${log.operator_name || '-'}</div>
+                    ${log.remark ? `<div style="color:#475467;margin-top:2px;">${log.remark}</div>` : ''}
+                    <div style="color:#94a3b8;margin-top:3px;font-size:12px;">${dt}</div>
+                </div>
+            `;
+            wrap.appendChild(row);
+        });
+        transferLogsList.appendChild(wrap);
+    }
+
     async function loadDetail(deviceId) {
         testResultsList.innerHTML = '<span style="color:#94a3b8">加载中...</span>';
+        transferLogsList.innerHTML = '<span style="color:#94a3b8">加载中...</span>';
         photosPartsGrid.innerHTML = '';
         photosSimGrid.innerHTML = '';
         photosFamilyGrid.innerHTML = '';
@@ -1269,12 +1330,14 @@ if ($tab === 'agent') {
             const data = await resp.json();
             if (data.ok) {
                 renderTestResults(data.results || {});
+                renderTransferLogs(data.transfer_logs || []);
                 renderPhotos(photosPartsGrid, data.photos.parts);
                 renderPhotos(photosSimGrid, data.photos.sim);
                 renderPhotos(photosFamilyGrid, data.photos.family);
             }
         } catch (e) {
             testResultsList.innerHTML = '<span style="color:#dc2626">加载失败</span>';
+            transferLogsList.innerHTML = '';
         }
     }
 

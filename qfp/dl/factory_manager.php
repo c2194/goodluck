@@ -87,6 +87,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $stmt = $pdo->prepare('UPDATE devices SET factory_status = 1 WHERE id = ? AND factory_status = 0');
             $stmt->execute([$deviceId]);
+            if ($stmt->rowCount() > 0) {
+                $logStmt = $pdo->prepare('INSERT INTO device_transfer_logs (device_id, from_status, to_status, operator_id, operator_name, operator_role, remark, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+                $logStmt->execute([$deviceId, 0, 1, $user['id'], $user['display_name'], $user['role'], '', time()]);
+            }
             redirectFactorySelf();
         }
     }

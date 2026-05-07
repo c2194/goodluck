@@ -189,6 +189,8 @@ if (isset($_GET['ajax'])) {
         $stmt = $pdo->prepare('UPDATE devices SET factory_status = 2 WHERE id = ? AND factory_status = 1');
         $stmt->execute([$deviceId]);
         if ($stmt->rowCount() > 0) {
+            $logStmt = $pdo->prepare('INSERT INTO device_transfer_logs (device_id, from_status, to_status, operator_id, operator_name, operator_role, remark, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+            $logStmt->execute([$deviceId, 1, 2, $user['id'], $user['display_name'], $user['role'], '', time()]);
             echo json_encode(['ok' => true]);
         } else {
             echo json_encode(['error' => '状态更新失败，设备可能不在测试阶段']);

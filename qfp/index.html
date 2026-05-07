@@ -167,6 +167,54 @@
       color: var(--text);
       word-break: break-all;
     }
+
+    /* 不可关闭全屏遮罩 */
+    .block-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0,0,0,0.85);
+      align-items: center;
+      justify-content: center;
+    }
+    .block-overlay.show { display: flex; }
+    .block-overlay-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px 28px;
+      max-width: 320px;
+      width: 90%;
+      text-align: center;
+    }
+    .block-overlay-icon {
+      font-size: 40px;
+      margin-bottom: 16px;
+    }
+    .block-overlay-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .block-overlay-msg {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .block-overlay-btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 9px 32px;
+      background: var(--btn);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -180,6 +228,23 @@
   </div>
   <div class="sub-bar" id="subBar"></div>
   <div class="device-info" id="deviceInfo"></div>
+
+  <div class="block-overlay" id="blockOverlay">
+    <div class="block-overlay-box">
+      <div class="block-overlay-icon">📦</div>
+      <div class="block-overlay-title">祈福牌运输库存中</div>
+      <div class="block-overlay-msg">您的祈福牌正在运输或备货中，暂时无法使用，请耐心等待。</div>
+    </div>
+  </div>
+
+  <div class="block-overlay" id="testOverlay">
+    <div class="block-overlay-box">
+      <div class="block-overlay-icon">🔧</div>
+      <div class="block-overlay-title">出厂测试</div>
+      <div class="block-overlay-msg">进入挂牌状态将无此提示</div>
+      <button class="block-overlay-btn" id="testOverlayOk">确定</button>
+    </div>
+  </div>
 
   <div class="picker-main">
     <div class="tile-grid" id="tileGrid"></div>
@@ -345,6 +410,10 @@
       el.classList.add('show');
     }
 
+    document.getElementById('testOverlayOk').addEventListener('click', () => {
+      document.getElementById('testOverlay').classList.remove('show');
+    });
+
     // 初始化：同时加载模板列表和分类列表
     (async () => {
       try {
@@ -354,10 +423,20 @@
           fetch('dl/template.php?action=list_types' + devParams)
         ]);
         const listData = await resTemplates.json();
+        console.log('[template.php?action=list]', listData);
         // 兼容新旧格式：新格式 {templates:[], device:{}} 旧格式 []
         allTemplates = Array.isArray(listData) ? listData : (listData.templates || []);
-        if (listData.device) deviceInfoData = listData.device;
+        if (listData.device) {
+          deviceInfoData = listData.device;
+          const fs = deviceInfoData.factory_status ?? 0;
+          if (fs > 2 && fs < 9) {
+            document.getElementById('blockOverlay').classList.add('show');
+          } else if (fs < 3) {
+            document.getElementById('testOverlay').classList.add('show');
+          }
+        }
         const typesData = await resTypes.json();
+        console.log('[template.php?action=list_types]', typesData);
         allTypes = (typesData.types || []).map(t => ({ id: Number(t.id), name: t.name }));
         // 初始：显示全部
         applyFilter();
